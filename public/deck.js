@@ -503,6 +503,14 @@
         ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
         ctx.stroke();
       }
+      // Passengers being offered an upgrade hold at the agent's podium beside the door.
+      if (s.stage === "boarding" && s.offer) {
+        ctx.strokeStyle = s.offer.accepted ? "#c77dff" : "#8a6bb5";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 1;
       if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
         ctx.strokeStyle = "rgba(245,185,66,0.35)";
@@ -525,12 +533,13 @@
       [PALETTE.treat, "new path (a flag is on)"],
       [PALETTE.stop, "missed boarding"],
       ["ring", "express lane (carry-on only)"],
+      ["ring:#c77dff", "upgrade offer at the door"],
     ];
     let x = 20;
     const y = 22;
     for (const [color, text] of items) {
-      if (color === "ring") {
-        ctx.strokeStyle = "#e8edf5";
+      if (color.startsWith("ring")) {
+        ctx.strokeStyle = color.includes(":") ? color.split(":")[1] : "#e8edf5";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(x, y, 6, 0, Math.PI * 2);
