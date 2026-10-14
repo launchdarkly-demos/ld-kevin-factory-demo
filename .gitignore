@@ -3,3 +3,4 @@ node_modules/
 .tmp-snapshots/
 npm-debug.log*
 .DS_Store
+docs/media/frames/

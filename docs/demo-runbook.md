@@ -12,6 +12,11 @@ About 15 minutes live if PR 1 is merged before the audience arrives.
    an empty altitude tape.
 3. Optional head start: run act 1 through the merge now, so the audience sees
    it already at CRUISE and act 2 gets the live time.
+4. To record the run for the README animation, start
+   `scripts/capture.sh 10` in a second terminal before act 1 and stop it with
+   Ctrl-C after the rollback. Then `node scripts/make-gif.mjs` writes
+   `docs/media/flight-deck.png` (use `--every=2` or `--delay=300` to tune
+   length and pace). Frames are git-ignored; commit the animation.
 
 ## Act 1: express boarding lane (lands)
 
