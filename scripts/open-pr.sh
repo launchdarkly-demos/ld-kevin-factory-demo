@@ -11,6 +11,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 REPO="launchdarkly-demos/ld-kevin-factory-demo"
+trap 'git checkout -q main 2>/dev/null || true' EXIT
 
 case "${1:-}" in
   1) PATCH=demo/patches/pr1-express-boarding.patch; BODY=demo/pr1.md; BRANCH=express-boarding ;;
@@ -35,6 +36,11 @@ if ! git am -3 "$PATCH"; then
   exit 1
 fi
 npm test >/dev/null
-git push -q -u origin "$BRANCH"
-gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$TITLE" --body "$DESCRIPTION"
-git checkout -q main
+# Demo branches are disposable: replace any leftover remote branch of the same name.
+git push -q -u --force origin "$BRANCH"
+EXISTING="$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json url --jq '.[0].url // empty')"
+if [ -n "$EXISTING" ]; then
+  echo "pull request already open: $EXISTING"
+else
+  gh pr create --repo "$REPO" --base main --head "$BRANCH" --title "$TITLE" --body "$DESCRIPTION"
+fi
