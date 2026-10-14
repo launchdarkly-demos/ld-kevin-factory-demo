@@ -1,4 +1,4 @@
-From cf3a632e569479e77f417511f6ec5eee19920d3f Mon Sep 17 00:00:00 2001
+From c43166d010e5d5ac9ec6365a50e6f6f22a8add84 Mon Sep 17 00:00:00 2001
 From: Kevin Cochran <40193276+kevincloud@users.noreply.github.com>
 Date: Wed, 14 Oct 2026 10:09:52 -0400
 Subject: [PATCH] Offer paid upgrades to Plus and Elite members at the gate
@@ -14,9 +14,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
  public/deck.js         | 13 +++++++++++--
  server.mjs             |  4 ++++
  sim/boarding.mjs       | 27 +++++++++++++++++++++++++++
- sim/world.mjs          | 16 +++++++++++++---
+ sim/world.mjs          | 13 +++++++++++--
  test/boarding.test.mjs | 33 ++++++++++++++++++++++++++++++++-
- 5 files changed, 87 insertions(+), 6 deletions(-)
+ 5 files changed, 85 insertions(+), 5 deletions(-)
 
 diff --git a/public/deck.js b/public/deck.js
 index e56e6eb..a6c9ade 100644
@@ -104,7 +104,7 @@ index eb6e1ab..d2cb3b1 100644
 +  };
 +}
 diff --git a/sim/world.mjs b/sim/world.mjs
-index 8ce97d3..c88a90c 100644
+index de4b884..0f1ffc3 100644
 --- a/sim/world.mjs
 +++ b/sim/world.mjs
 @@ -14,7 +14,7 @@
@@ -133,27 +133,28 @@ index 8ce97d3..c88a90c 100644
      p.boardingMs = null;
      p.missed = false;
      p.rerouted = false;
-@@ -375,10 +376,18 @@ export class World {
-     p.stage = "deciding";
-     Promise.resolve()
-       .then(() => boardingLane(p))
--      .then((lane) => {
-+      .then(async (lane) => {
-         if (p.stage !== "deciding") return;
-         p.lane = lane || "zone";
-         p.boardingMs = gateToSeatMs(p.lane, this.rng);
-+        const offer = await upgradeOffer(p, this.rng);
-+        if (p.stage !== "deciding") return;
-+        if (offer) {
-+          p.offer = offer;
-+          p.boardingMs += offer.durationSimMs;
-+          this.counters.offers += 1;
-+          if (offer.accepted) this.counters.upgrades += 1;
-+        }
-         p.dwell = p.boardingMs / SIM_SPEED / 1000;
-         p.stage = "boarding";
-       })
-@@ -480,6 +489,7 @@ export class World {
+@@ -375,6 +376,12 @@ export class World {
+    */
+   async decideAtSecurity(p) {
+     p.lane = (await boardingLane(p)) || "zone";
++    const offer = await upgradeOffer(p, this.rng);
++    if (offer) {
++      p.offer = offer;
++      this.counters.offers += 1;
++      if (offer.accepted) this.counters.upgrades += 1;
++    }
+   }
+ 
+   clearSecurity(p) {
+@@ -394,6 +401,7 @@ export class World {
+   startBoarding(p) {
+     p.lane = p.lane || "zone";
+     p.boardingMs = gateToSeatMs(p.lane, this.rng);
++    if (p.offer) p.boardingMs += p.offer.durationSimMs; // the offer conversation at the door
+     p.dwell = p.boardingMs / SIM_SPEED / 1000;
+     p.stage = "boarding";
+   }
+@@ -486,6 +494,7 @@ export class World {
          y: Math.round(p.y + p.depth),
          stage: p.stage,
          lane: p.lane,
