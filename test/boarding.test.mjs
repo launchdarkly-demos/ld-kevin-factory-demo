@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { boardingLane, gateToSeatMs, LANES } from "../sim/boarding.mjs";
+import { boardingLane, gateToSeatMs, upgradeOffer, LANES, UPGRADE_OFFER } from "../sim/boarding.mjs";
 import { createPassenger } from "../sim/passenger.mjs";
 import { mulberry32 } from "../sim/world.mjs";
 import { withFlags } from "../lib/flags.mjs";
@@ -57,6 +57,37 @@ test("gate-to-seat time stays inside the zone lane's range", () => {
   for (let i = 0; i < 200; i += 1) {
     const ms = gateToSeatMs("zone", rng);
     assert.ok(ms >= lo && ms <= hi, `${ms} outside ${lo}..${hi}`);
+  }
+});
+
+test("Plus and Elite passengers get an upgrade offer at the door; Basic passengers do not", async () => {
+  const rng = mulberry32(4);
+  let offered = 0;
+  let accepted = 0;
+  for (let i = 1; i <= 300; i += 1) {
+    const p = createPassenger(i, rng);
+    const offer = await upgradeOffer(p, rng);
+    if (p.tier === "basic") {
+      assert.equal(offer, null);
+      continue;
+    }
+    assert.ok(offer, `${p.tier} passenger should be offered an upgrade`);
+    assert.equal(offer.tier, p.tier);
+    offered += 1;
+    if (offer.accepted) accepted += 1;
+  }
+  assert.ok(offered > 50, `offered ${offered}`);
+  assert.ok(accepted > 0 && accepted < offered, `accepted ${accepted} of ${offered}`);
+});
+
+test("an upgrade offer takes between 2.5 and 4 simulated minutes", async () => {
+  const rng = mulberry32(5);
+  const [lo, hi] = UPGRADE_OFFER.durationSimMs;
+  for (let i = 1; i <= 200; i += 1) {
+    const p = createPassenger(i, rng);
+    const offer = await upgradeOffer(p, rng);
+    if (!offer) continue;
+    assert.ok(offer.durationSimMs >= lo && offer.durationSimMs <= hi, `${offer.durationSimMs} outside ${lo}..${hi}`);
   }
 });
 
