@@ -14,7 +14,7 @@
  * world awaits them.
  */
 
-import { boardingLane, gateToSeatMs } from "./boarding.mjs";
+import { boardingLane, gateToSeatMs, upgradeOffer } from "./boarding.mjs";
 import { buildGates, onFlightDelayed } from "./gates.mjs";
 import { createPassenger } from "./passenger.mjs";
 import { Outcomes } from "./metrics.mjs";
@@ -105,7 +105,7 @@ export class World {
     this.spawnDebt = 0;
     this.flightSeq = 100 + Math.floor(this.rng() * 400);
     this.outcomes = new Outcomes(60_000);
-    this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0 };
+    this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0, offers: 0, upgrades: 0 };
     // Stagger the first flights so the gates are not all in lockstep.
     for (const gate of this.gates) this.scheduleFlight(gate, between(this.rng, [0, TUNING.boardingWindow]));
   }
@@ -230,6 +230,7 @@ export class World {
     p.checkinDwell = between(this.rng, TUNING.checkinDwell);
     p.securityDwell = this.rng() < TUNING.securitySlowOdds ? between(this.rng, TUNING.securitySlowDwell) : between(this.rng, TUNING.securityDwell);
     p.lane = null;
+    p.offer = null;
     p.boardingMs = null;
     p.missed = false;
     p.rerouted = false;
@@ -374,10 +375,18 @@ export class World {
     p.stage = "deciding";
     Promise.resolve()
       .then(() => boardingLane(p))
-      .then((lane) => {
+      .then(async (lane) => {
         if (p.stage !== "deciding") return;
         p.lane = lane || "zone";
         p.boardingMs = gateToSeatMs(p.lane, this.rng);
+        const offer = await upgradeOffer(p, this.rng);
+        if (p.stage !== "deciding") return;
+        if (offer) {
+          p.offer = offer;
+          p.boardingMs += offer.durationSimMs;
+          this.counters.offers += 1;
+          if (offer.accepted) this.counters.upgrades += 1;
+        }
         p.dwell = p.boardingMs / SIM_SPEED / 1000;
         p.stage = "boarding";
       })
@@ -467,6 +476,7 @@ export class World {
         y: Math.round(p.y + p.depth),
         stage: p.stage,
         lane: p.lane,
+        offer: p.offer ? { accepted: p.offer.accepted } : null,
         path: this.pathOf(p),
         bags: p.bags,
         tier: p.tier,

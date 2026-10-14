@@ -182,6 +182,10 @@ const server = http.createServer((req, res) => {
   }
   const pathname = new URL(req.url, "http://localhost").pathname;
   if (pathname === "/api/state") return sendJson(res, 200, state());
+  if (pathname === "/api/upgrades") {
+    const { offers, upgrades } = world.counters;
+    return sendJson(res, 200, { offers, accepted: upgrades, acceptanceRate: offers ? upgrades / offers : null });
+  }
   if (pathname === "/api/health") {
     return sendJson(res, 200, {
       ok: true,
