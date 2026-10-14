@@ -1,4 +1,4 @@
-From deff67dbe1caa404df29b2295615364969885f74 Mon Sep 17 00:00:00 2001
+From cf3a632e569479e77f417511f6ec5eee19920d3f Mon Sep 17 00:00:00 2001
 From: Kevin Cochran <40193276+kevincloud@users.noreply.github.com>
 Date: Wed, 14 Oct 2026 10:09:52 -0400
 Subject: [PATCH] Offer paid upgrades to Plus and Elite members at the gate
@@ -19,10 +19,10 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
  5 files changed, 87 insertions(+), 6 deletions(-)
 
 diff --git a/public/deck.js b/public/deck.js
-index 36886e4..875b8cb 100644
+index e56e6eb..a6c9ade 100644
 --- a/public/deck.js
 +++ b/public/deck.js
-@@ -303,6 +303,14 @@
+@@ -316,6 +316,14 @@
          ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
          ctx.stroke();
        }
@@ -37,7 +37,7 @@ index 36886e4..875b8cb 100644
        ctx.globalAlpha = 1;
        if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
          ctx.strokeStyle = "rgba(245,185,66,0.35)";
-@@ -325,12 +333,13 @@
+@@ -338,12 +346,13 @@
        [PALETTE.treat, "new path (a flag is on)"],
        [PALETTE.stop, "missed boarding"],
        ["ring", "express lane (carry-on only)"],
@@ -54,13 +54,13 @@ index 36886e4..875b8cb 100644
          ctx.beginPath();
          ctx.arc(x, y, 6, 0, Math.PI * 2);
 diff --git a/server.mjs b/server.mjs
-index b115d4a..d9a01db 100644
+index d6ae06b..a28b724 100644
 --- a/server.mjs
 +++ b/server.mjs
-@@ -182,6 +182,10 @@ const server = http.createServer((req, res) => {
-   }
-   const pathname = new URL(req.url, "http://localhost").pathname;
+@@ -186,6 +186,10 @@ const server = http.createServer((req, res) => {
    if (pathname === "/api/state") return sendJson(res, 200, state());
+   // Per-lane boarding counts and average gate-to-seat time, for gate operations.
+   if (pathname === "/api/lanes") return sendJson(res, 200, { since: "start", lanes: world.laneStats() });
 +  if (pathname === "/api/upgrades") {
 +    const { offers, upgrades } = world.counters;
 +    return sendJson(res, 200, { offers, accepted: upgrades, acceptanceRate: offers ? upgrades / offers : null });
@@ -69,10 +69,10 @@ index b115d4a..d9a01db 100644
      return sendJson(res, 200, {
        ok: true,
 diff --git a/sim/boarding.mjs b/sim/boarding.mjs
-index fa46afe..dbb1a68 100644
+index eb6e1ab..d2cb3b1 100644
 --- a/sim/boarding.mjs
 +++ b/sim/boarding.mjs
-@@ -47,3 +47,30 @@ export function gateToSeatMs(lane, rng) {
+@@ -42,3 +42,30 @@ export function gateToSeatMs(lane, rng) {
    const [lo, hi] = (LANES[lane] || LANES.zone).gateToSeatSimMs;
    return Math.round(lo + rng() * (hi - lo));
  }
@@ -104,7 +104,7 @@ index fa46afe..dbb1a68 100644
 +  };
 +}
 diff --git a/sim/world.mjs b/sim/world.mjs
-index b01c370..aedd3fb 100644
+index 8ce97d3..c88a90c 100644
 --- a/sim/world.mjs
 +++ b/sim/world.mjs
 @@ -14,7 +14,7 @@
@@ -122,10 +122,10 @@ index b01c370..aedd3fb 100644
      this.outcomes = new Outcomes(60_000);
 -    this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0 };
 +    this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0, offers: 0, upgrades: 0 };
+     this.lanes = {}; // lane key -> { boarded, msTotal }, since start
      // Stagger the first flights so the gates are not all in lockstep.
      for (const gate of this.gates) this.scheduleFlight(gate, between(this.rng, [0, TUNING.boardingWindow]));
-   }
-@@ -230,6 +230,7 @@ export class World {
+@@ -231,6 +231,7 @@ export class World {
      p.checkinDwell = between(this.rng, TUNING.checkinDwell);
      p.securityDwell = this.rng() < TUNING.securitySlowOdds ? between(this.rng, TUNING.securitySlowDwell) : between(this.rng, TUNING.securityDwell);
      p.lane = null;
@@ -133,7 +133,7 @@ index b01c370..aedd3fb 100644
      p.boardingMs = null;
      p.missed = false;
      p.rerouted = false;
-@@ -374,10 +375,18 @@ export class World {
+@@ -375,10 +376,18 @@ export class World {
      p.stage = "deciding";
      Promise.resolve()
        .then(() => boardingLane(p))
@@ -153,7 +153,7 @@ index b01c370..aedd3fb 100644
          p.dwell = p.boardingMs / SIM_SPEED / 1000;
          p.stage = "boarding";
        })
-@@ -467,6 +476,7 @@ export class World {
+@@ -480,6 +489,7 @@ export class World {
          y: Math.round(p.y + p.depth),
          stage: p.stage,
          lane: p.lane,
@@ -162,7 +162,7 @@ index b01c370..aedd3fb 100644
          bags: p.bags,
          tier: p.tier,
 diff --git a/test/boarding.test.mjs b/test/boarding.test.mjs
-index 425368a..79622be 100644
+index 869a97a..37e275f 100644
 --- a/test/boarding.test.mjs
 +++ b/test/boarding.test.mjs
 @@ -1,7 +1,7 @@
@@ -173,8 +173,8 @@ index 425368a..79622be 100644
 +import { boardingLane, gateToSeatMs, upgradeOffer, LANES, UPGRADE_OFFER } from "../sim/boarding.mjs";
  import { createPassenger } from "../sim/passenger.mjs";
  import { mulberry32 } from "../sim/world.mjs";
- import { withFlags } from "../lib/flags.mjs";
-@@ -60,6 +60,37 @@ test("gate-to-seat time stays inside the zone lane's range", () => {
+ 
+@@ -44,6 +44,37 @@ test("gate-to-seat time stays inside the zone lane's range", () => {
    }
  });
  
