@@ -1,0 +1,26 @@
+# Push LaunchDarkly code references on every merge to main, so each flag's
+# page in LaunchDarkly shows where it lives in this codebase and flag cleanup
+# stays mechanical. Standard find-code-refs action; scanner config lives in
+# .launchdarkly/coderefs.yaml.
+#
+# Needs the repo secret LD_API_KEY: a LaunchDarkly API access token with
+# permission to write code references for this project.
+
+name: LaunchDarkly code references
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  coderefs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 11 # the scanner inspects recent history for branch info
+
+      - uses: launchdarkly/find-code-references@v2.14.0
+        with:
+          accessToken: ${{ secrets.LD_API_KEY }}
+          projKey: kevinc-release-autopilot-demo

@@ -1,0 +1,11 @@
+# ld-find-code-refs configuration, used by .github/workflows/find-code-refs.yml.
+#
+# Flag keys in this repo are written as string literals at the evaluation site
+# (`isEnabled("enable-express-boarding", ...)`), so every reference is found
+# without aliases. The alias types below additionally catch conventional
+# renamings of a key should a constant ever be introduced.
+aliases:
+  - type: camelcase
+  - type: uppersnakecase
+
+contextLines: 2
