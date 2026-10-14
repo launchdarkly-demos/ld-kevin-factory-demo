@@ -11,7 +11,6 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 REPO="launchdarkly-demos/ld-kevin-factory-demo"
-trap 'git checkout -q main 2>/dev/null || true' EXIT
 
 case "${1:-}" in
   1) PATCH=demo/patches/pr1-express-boarding.patch; BODY=demo/pr1.md; BRANCH=express-boarding ;;
@@ -26,12 +25,17 @@ fi
 
 TITLE="$(sed -n '1p' "$BODY")"
 DESCRIPTION="$(sed '1,2d' "$BODY")"
+# Read the patch from the current checkout before switching branches, since
+# origin/main (the demo baseline) may carry an older copy.
+PATCH_TMP="$(mktemp)"
+cp "$PATCH" "$PATCH_TMP"
+trap 'rm -f "$PATCH_TMP"; git checkout -q main 2>/dev/null || true' EXIT
 
 git fetch -q origin main
 git checkout -q -B "$BRANCH" origin/main
 # -3 lets git fall back to a three-way merge when the GitHub App's gating
 # commit from an earlier PR has shifted nearby lines.
-if ! git am -3 "$PATCH"; then
+if ! git am -3 "$PATCH_TMP"; then
   echo "patch did not apply cleanly; resolve, then: git am --continue && git push -u origin $BRANCH" >&2
   exit 1
 fi
