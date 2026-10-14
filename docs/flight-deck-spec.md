@@ -197,32 +197,42 @@ Expected sequence:
    minutes; gold passengers appear and take the express lane; the boarding
    time gauge shows the new path well under the old; lamp reads `CRUISE`.
 
-### PR 2: Reassign delayed flights to the nearest open gate
+### PR 2: Gate upgrade offers for Plus and Elite members
 
-Branch `dynamic-gate-reassignment`. Files: `sim/gates.mjs`,
-`test/gates.test.mjs`.
+Branch `gate-upgrade-offers`. Files: `sim/boarding.mjs`, `sim/world.mjs`,
+`server.mjs` (new `/api/upgrades` endpoint), `public/deck.js`,
+`test/boarding.test.mjs`.
 
-Change: when a flight is delayed and its gate is needed, `assignGate` moves it
-to the first open gate anywhere in the terminal instead of holding it. The
-honest side effect: the nearest open gate is often in the other concourse, so
-rerouted passengers walk further and a meaningful share arrive after the door
-closes. Missed-boarding climbs from roughly 2% to roughly 12% on the new path.
+Why not the gate-reassignment idea from the first draft: a delayed flight is a
+per-flight decision, so the flag would be evaluated without a passenger
+context and the guarded release could not attribute outcomes to the treatment
+arm. Every flag decision has to be per passenger.
+
+Change: when a Plus or Elite passenger reaches the door, the agent offers a
+paid upgrade. The conversation and reseating take 2.5 to 4 simulated minutes
+before the passenger heads to their seat. Eligible passengers are about 43%
+of traffic, so new-path boarding time rises from about 4.2 to about 5.7
+simulated minutes. The ops board gains `/api/upgrades` with offer and
+acceptance counts.
 
 PR body:
 
-> Delayed flights currently hold their gate, which blocks the next departure.
-> This reassigns a delayed flight to the first open gate in the terminal and
-> notifies its passengers of the new gate, freeing the original gate on time.
+> Plus and Elite members currently board with no upsell. This has the gate
+> agent offer a paid upgrade to eligible passengers at the door, processes
+> the reseating on acceptance, and exposes offer and acceptance counts at
+> `/api/upgrades` for the ops board. The offer takes a few minutes per
+> passenger at the door, so boarding time for eligible passengers goes up;
+> we expect the revenue to justify it.
 
 Expected sequence:
 
 1. Proposal, approve, guard pushed, merge, same as PR 1.
-2. Autopilot starts at 10%. Within the first stage the missed-boarding gauge
-   for the new path climbs; red passengers appear wandering between
-   concourses.
+2. Autopilot starts at 10%. Within the first stage the new-path boarding time
+   gauge climbs above baseline and turns red; passengers with a ring pause at
+   the door.
 3. Guarded release detects the regression and rolls back. The SDK streams the
-   change, the altitude tape falls to 0, the lamp reads `DISENGAGED`, red
-   passengers stop appearing, and the log shows the rollback timestamp.
+   change, the altitude tape falls to 0, the lamp reads `DISENGAGED`, and the
+   log shows the rollback timestamp.
 
 ### Optional act between them: retool
 
@@ -257,6 +267,40 @@ shown already at cruise, which cuts it to about 12.
    `CLAUDE.md` conventions from what it did.
 6. Add the GitHub flight plan strip.
 7. Dry run PR 2. Write `docs/demo-runbook.md` from the two runs.
+
+## Dry run 1 findings (2026-10-13, PR #1)
+
+- **Classification bar.** The app declined to flag the express lane on its own:
+  "a self-contained routing change with no new surface, contract change, or
+  risky call." Pure behaviour tweaks inside the sim do not clear the bar.
+  `@launchdarkly refine <ask>` produced a plan within a minute.
+- **The plan includes the release.** The refined plan carried a "Proposed
+  Release Configuration" copied from the project's policy (10% / 2m, 25% / 2m,
+  50% / 3m, both metrics, auto-rollback). `@launchdarkly approve` created the
+  flag (off), pushed a commit that followed `CLAUDE.md` exactly (async
+  `boardingLane`, `isEnabled` with fallback false, `withFlags` tests for both
+  states), and created the release configuration.
+- **Release trigger.** After merge the flag's Release tab showed Production
+  "Not ready: Waiting on flag evaluations to start release" even with ~240
+  evaluations a minute arriving. The reference app reports its commit SHA to
+  LaunchDarkly (observability plugin `serviceVersion`); the deck now sets SDK
+  application metadata `{ id: "flight-deck", version: <git commit> }`.
+- **Timing.** PR open to first bot comment: ~4 min. Refine to plan: ~1.5 min.
+  Approve to "Plan applied" with commit: ~1.5 min.
+- **Auto-release did not fire.** 38 minutes after merge the Release tab still
+  read "Waiting on flag evaluations to start release", with ~240 evaluations a
+  minute and SDK application metadata reporting the merge commit. Open
+  question for the Factory team: what counts as "deployed".
+- **Manual start works and follows the policy.** The flag's Release button
+  pre-filled the policy's guarded release (user, both metrics, auto-rollback,
+  10% / 2m, 25% / 2m, 50% / 3m, release to everyone). Saving it ran the whole
+  rollout: 10% at +1 min, 25% at +3.5, 50% at +5.5, 100% and CRUISE at +8.5.
+  The SDK streamed each step within a second; the deck's tape followed with
+  the 60-second window lag. New-path boarding time held around 4.2 simulated
+  minutes against 5.5 baseline; no misses on the new path.
+- **Instrument polish needed.** Once the baseline shrinks to a handful of
+  passengers its miss rate swings wildly (3 of 30 read as 10%). Show sample
+  counts or blank a gauge below ~20 passengers.
 
 ## Open questions, in the order they can bite
 

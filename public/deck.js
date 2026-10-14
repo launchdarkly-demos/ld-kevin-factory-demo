@@ -107,37 +107,47 @@
     }
     el.tape.innerHTML = flagList
       .map(
-        (f) => `<div class="flag"><div class="key"><span>${esc(f.key)}</span><span class="pct">${f.share}%</span></div>` +
+        (f) => `<div class="flag"><div class="key"><span>${esc(f.key)}</span><span class="pct">${f.share}%${f.landed ? " · landed" : ""}</span></div>` +
           `<div class="track"><div class="fill" style="width:${f.share}%"></div></div>` +
           `<div class="key" style="color:#5e6878;font-size:11px"><span>${f.trueCount} of ${f.total} passengers</span><span>peak ${f.peakShare}%</span></div></div>`,
       )
       .join("");
   }
 
+  // Below this many passengers a gauge reads as noise, so it shows the count instead.
+  const MIN_SAMPLE = 20;
+
   function renderGauges(o) {
     const b = o.baseline;
     const t = o.treatment;
+    const fmtMin = (v) => `${(v / 60000).toFixed(1)} min`;
+    const fmtPct = (v) => `${(v * 100).toFixed(1)}%`;
     const maxMs = Math.max(b.avgBoardingMs || 0, t.avgBoardingMs || 0, 420000);
-    setBar(el.gaugeBoarding, "base", b.avgBoardingMs, maxMs, (v) => `${(v / 60000).toFixed(1)} min`);
-    setBar(el.gaugeBoarding, "treat", t.avgBoardingMs, maxMs, (v) => `${(v / 60000).toFixed(1)} min`);
+    setBar(el.gaugeBoarding, "base", b.avgBoardingMs, maxMs, fmtMin, b.boarded);
+    setBar(el.gaugeBoarding, "treat", t.avgBoardingMs, maxMs, fmtMin, t.boarded, (v) => b.boarded >= MIN_SAMPLE && v > b.avgBoardingMs * 1.2);
     const maxRate = Math.max(b.missRate || 0, t.missRate || 0, 0.15);
-    setBar(el.gaugeMissed, "base", b.missRate, maxRate, (v) => `${(v * 100).toFixed(1)}%`, b.total);
-    setBar(el.gaugeMissed, "treat", t.missRate, maxRate, (v) => `${(v * 100).toFixed(1)}%`, t.total, b.missRate);
+    setBar(el.gaugeMissed, "base", b.missRate, maxRate, fmtPct, b.total);
+    setBar(el.gaugeMissed, "treat", t.missRate, maxRate, fmtPct, t.total, (v) => b.total >= MIN_SAMPLE && v > b.missRate * 1.5 && v > 0.04);
   }
 
-  function setBar(gauge, which, value, max, fmt, n, compare) {
+  function setBar(gauge, which, value, max, fmt, n, worseIf) {
     const fill = gauge.querySelector(`.fill.${which}`);
     const out = gauge.querySelector(`.value[data-k="${which}"]`);
-    if (value === null || value === undefined) {
+    if (value === null || value === undefined || n === 0) {
       fill.style.width = "0%";
       out.textContent = "—";
       fill.classList.remove("bad");
       return;
     }
+    if (n < MIN_SAMPLE) {
+      fill.style.width = "0%";
+      out.textContent = `n=${n}`;
+      fill.classList.remove("bad");
+      return;
+    }
     fill.style.width = `${Math.min(100, (value / max) * 100)}%`;
-    out.textContent = n !== undefined ? `${fmt(value)}` : fmt(value);
-    const worse = compare !== undefined && compare !== null && value > compare * 1.5 && value > 0.04;
-    fill.classList.toggle("bad", Boolean(worse));
+    out.textContent = fmt(value);
+    fill.classList.toggle("bad", Boolean(worseIf && worseIf(value)));
   }
 
   function renderLog(entries) {
