@@ -20,7 +20,11 @@ and the tests simple.
    the baseline value, `false`.
 2. **One boolean flag per user-facing behaviour change.** Keys are
    `enable-<descriptive-name>`, for example `enable-express-boarding`.
-3. **Evaluate through the helper, at the decision point, once per passenger.**
+3. **Evaluate through the helper, once per passenger, as they clear security.**
+   `decideAtSecurity()` in `sim/world.mjs` calls the decision functions in
+   `sim/boarding.mjs` when a passenger clears security and stores the results
+   on the passenger; the door applies them. Evaluating there, rather than at
+   the door, lets the deck colour the passenger for the whole walk to the gate.
 
    ```js
    import { isEnabled } from "../lib/flags.mjs";
@@ -34,8 +38,9 @@ and the tests simple.
    ```
 
    `isEnabled` is async. The decision functions in `sim/` may be made async;
-   the world already awaits them. Never cache a flag value across passengers,
-   and never evaluate outside `lib/flags.mjs`.
+   `decideAtSecurity()` awaits them. A new per-passenger decision belongs in
+   `decideAtSecurity()` next to the lane choice. Never cache a flag value
+   across passengers, and never evaluate outside `lib/flags.mjs`.
 4. **The context is `passenger.context`.** It is a LaunchDarkly `user` context
    with a unique key per passenger and the attributes `bags`, `tier`, `region`,
    and `loyaltyYears`.

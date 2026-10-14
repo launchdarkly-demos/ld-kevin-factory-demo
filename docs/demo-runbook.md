@@ -38,8 +38,10 @@ About 15 minutes live if PR 1 is merged before the audience arrives.
    If it still reads "Not ready: waiting on flag evaluations" after a minute,
    click **Release** on the targeting page: it pre-fills the policy's guarded
    release, and one Save starts it.
-6. Watch: 10% at +1 min, 25% at +3, 50% at +5, 100% and **CRUISE** at about
-   +8. New-path boarding time about 4 simulated minutes against 5.5.
+6. Watch: 10% at once, 25% at +1 min, 50% at +2, 100% and **CRUISE** at
+   about +4. New-path boarding time about 4 simulated minutes against 5.5.
+   Passengers turn gold as they clear security, so the new path is visible for
+   the whole walk to the gate.
 
 ## Act 2: gate upgrade offers (rolls back)
 
@@ -62,6 +64,14 @@ About 15 minutes live if PR 1 is merged before the audience arrives.
 - Release tab stuck at "Not ready": the flag is still off. Turn it on.
 - Deck shows "offline": `LD_SDK_KEY` missing from `.env`.
 
+## Pace
+
+The release policy runs 10% / 1 min, 25% / 1 min, 50% / 2 min. The guard has
+rolled back about 40 seconds into the 25% stage in every run so far, so the
+two-minute last step keeps a safety margin before the change lands at 100%,
+after which monitoring stops. The deck runs 8 passengers a second
+(`SIM_RATE`) so each stage has enough samples.
+
 ## Timing summary
 
 | Beat | Minutes |
@@ -69,5 +79,5 @@ About 15 minutes live if PR 1 is merged before the audience arrives.
 | PR open to plan | ~4 |
 | Approve to "Plan applied" | ~2 |
 | Flag on to release start | <1 |
-| Act 1 rollout to cruise | ~8 |
-| Act 2 rollout to rollback | ~3 |
+| Act 1 rollout to cruise | ~4 |
+| Act 2 rollout to rollback | ~2 |

@@ -35,7 +35,7 @@ export const LAYOUT = Object.freeze({
 });
 
 export const TUNING = {
-  passengersPerSecond: 4,
+  passengersPerSecond: 8,
   walkSpeed: 90, // px per real second
   checkinDwell: [0.4, 1.6], // real seconds
   securityDwell: [0.8, 3.0],
@@ -57,9 +57,9 @@ const PASSENGER_STAGES = new Set([
   "checkin",
   "toSecurity",
   "security",
+  "clearing",
   "toGate",
   "atGate",
-  "deciding",
   "boarding",
   "missed",
   "toDesk",
@@ -329,18 +329,15 @@ export class World {
         break;
       case "security":
         p.dwell -= dt;
-        if (p.dwell <= 0) {
-          p.stage = "toGate";
-          p.waypoints = this.routeTo(p, p.flight.gate);
-        }
+        if (p.dwell <= 0) this.clearSecurity(p);
+        break;
+      case "clearing":
         break;
       case "toGate":
         if (this.advance(p, dt)) this.arriveAtGate(p);
         break;
       case "atGate":
         this.arriveAtGate(p);
-        break;
-      case "deciding":
         break;
       case "boarding":
         p.dwell -= dt;
@@ -370,25 +367,34 @@ export class World {
     else this.miss(p);
   }
 
-  startBoarding(p) {
-    p.stage = "deciding";
-    Promise.resolve()
-      .then(() => boardingLane(p))
-      .then((lane) => {
-        if (p.stage !== "deciding") return;
-        p.lane = lane || "zone";
-        p.boardingMs = gateToSeatMs(p.lane, this.rng);
-        p.dwell = p.boardingMs / SIM_SPEED / 1000;
-        p.stage = "boarding";
-      })
+  /**
+   * Decisions made as a passenger clears security. Feature flags are evaluated
+   * here, once per passenger, so the deck can show which path they are on for
+   * the whole walk to the gate. The results are applied at the door.
+   */
+  async decideAtSecurity(p) {
+    p.lane = (await boardingLane(p)) || "zone";
+  }
+
+  clearSecurity(p) {
+    p.stage = "clearing";
+    this.decideAtSecurity(p)
       .catch((err) => {
-        this.log("error", `boarding decision failed for ${p.key}: ${err && err.message ? err.message : err}`);
-        if (p.stage !== "deciding") return;
-        p.lane = "zone";
-        p.boardingMs = gateToSeatMs("zone", this.rng);
-        p.dwell = p.boardingMs / SIM_SPEED / 1000;
-        p.stage = "boarding";
+        this.log("error", `security-point decision failed for ${p.key}: ${err && err.message ? err.message : err}`);
+        p.lane = p.lane || "zone";
+      })
+      .then(() => {
+        if (p.stage !== "clearing") return;
+        p.stage = "toGate";
+        p.waypoints = this.routeTo(p, p.flight.gate);
       });
+  }
+
+  startBoarding(p) {
+    p.lane = p.lane || "zone";
+    p.boardingMs = gateToSeatMs(p.lane, this.rng);
+    p.dwell = p.boardingMs / SIM_SPEED / 1000;
+    p.stage = "boarding";
   }
 
   pathOf(p) {
