@@ -29,9 +29,15 @@ About 15 minutes live if PR 1 is merged before the audience arrives.
    applied", a commit from Vega wrapping the lane behind the flag, flag created
    off in LaunchDarkly.
 4. Merge the PR. Pull `main` and restart the deck (the "deploy").
-5. **Turn the flag on** in LaunchDarkly, Production, default rule serving
-   Control. This is the deploy signal. Within a minute the Release tab shows
-   "Release phase 1 of 1, In progress" and the deck's lamp reads **CLIMB**.
+5. **Turn the flag on** in LaunchDarkly, Production, **and set the default
+   rule to serve Control in the same save**. The app creates the flag with
+   Treatment as the on-variation, so flipping the switch alone ships the
+   feature to everyone and the engine has nothing to release. Done right, the
+   Release tab shows "Release phase 1 of 1, In progress" within a minute and
+   the deck's lamp reads **CLIMB**.
+   If it still reads "Not ready: waiting on flag evaluations" after a minute,
+   click **Release** on the targeting page: it pre-fills the policy's guarded
+   release, and one Save starts it.
 6. Watch: 10% at +1 min, 25% at +3, 50% at +5, 100% and **CRUISE** at about
    +8. New-path boarding time about 4 simulated minutes against 5.5.
 

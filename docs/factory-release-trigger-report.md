@@ -50,6 +50,30 @@ Same stall for 38 minutes with the flag off. Release started by hand from the
 flag's Release button (which also turns the flag on); ran 10 → 25 → 50 → 100%
 in 8.5 minutes, no regression, Production "Completed".
 
+## Rehearsal, PR #3 (`enable-express-boarding` again, after a full reset)
+
+Same PR content as #1, replayed after `scripts/reset-demo.sh` deleted the
+flags and reset `main`. Four new observations:
+
+1. **Policy lookup failed.** The refine reply said "No LaunchDarkly release
+   policy matches staging or production" and the final plan carried a
+   heads-up that "the policy lookup does not currently resolve that policy
+   for production". The policy was unchanged since PR #2 resolved it, and it
+   was visible in the UI, scoped to Production, throughout. The project has no
+   staging environment.
+2. **Duplicate flag in another project.** "Plan applied" reported: "A
+   duplicate enable-express-boarding was created in the default project by
+   mistake and should be archived."
+3. **Flag defaults to Treatment when turned on.** The created flag's
+   on-variation default is Treatment, so turning it on without editing the
+   default rule released the feature to 100% immediately, with no guarded
+   release. The default rule had to be set to Control by hand.
+4. **No start after the fix.** With the flag on and serving Control (and
+   again after an off/on cycle), the Release tab stayed at "Not ready: Waiting
+   on flag evaluations to start release" for 20+ minutes. The release was
+   started by hand from the Release button. PR #2's identical configuration
+   had started within a minute of flag-on.
+
 ## Questions for the Factory team
 
 1. Is "flag turned on in the environment" the intended deploy signal? If so,
