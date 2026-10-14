@@ -233,7 +233,7 @@ export class World {
     p.boardingMs = null;
     p.missed = false;
     p.rerouted = false;
-    p.flight = this.pickFlight(p);
+    p.flight = this.pickFlight(p); // may be null; check-in retries until a flight is reachable
     this.passengers.push(p);
     this.counters.spawned += 1;
     return p;
@@ -254,7 +254,8 @@ export class World {
       if (slack >= TUNING.assignMargin) candidates.push(f);
     }
     if (candidates.length) return candidates[Math.floor(this.rng() * candidates.length)];
-    return flights.reduce((best, f) => (!best || f.doorCloseAt > best.doorCloseAt ? f : best), null);
+    // Nothing reachable right now. The passenger waits at check-in and tries again.
+    return null;
   }
 
   routeFrom(from, gate) {
@@ -311,6 +312,11 @@ export class World {
       case "checkin":
         p.dwell -= dt;
         if (p.dwell <= 0) {
+          if (!p.flight) p.flight = this.pickFlight(p);
+          if (!p.flight) {
+            p.dwell = 0.5; // no reachable flight yet; keep waiting at the desk
+            break;
+          }
           p.stage = "toSecurity";
           p.waypoints = [LAYOUT.security];
         }
@@ -397,6 +403,13 @@ export class World {
   }
 
   miss(p) {
+    if (process.env.FLIGHT_DECK_DEBUG) {
+      const f = p.flight;
+      console.error(
+        `[flight-deck] miss ${p.key} ${f.code}@${f.gate.id} status=${f.status} doorCloseIn=${Math.round(f.doorCloseAt - this.simClock)}s ` +
+          `delayed=${f.delayed} rerouted=${p.rerouted} securityDwell=${p.securityDwell.toFixed(1)}s`,
+      );
+    }
     this.outcomes.record({ path: this.pathOf(p), missed: true });
     track("missed-boarding", p.context);
     this.counters.missed += 1;

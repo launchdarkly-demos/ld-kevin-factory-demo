@@ -12,6 +12,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import * as flags from "./lib/flags.mjs";
@@ -47,8 +48,22 @@ function loadDotEnv(file) {
 
 loadDotEnv(path.join(HERE, ".env"));
 
+/**
+ * The deployed commit, for SDK application metadata and /api/health.
+ * FLIGHT_DECK_COMMIT wins (set it in a container build); otherwise ask git.
+ */
+function deployedCommit() {
+  if (process.env.FLIGHT_DECK_COMMIT) return process.env.FLIGHT_DECK_COMMIT.trim();
+  try {
+    return execSync("git rev-parse HEAD", { cwd: HERE, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "unknown";
+  }
+}
+
 const CONFIG = {
   port: Number(process.env.PORT || 7777),
+  commit: deployedCommit(),
   sdkKey: (process.env.LD_SDK_KEY || "").trim(),
   projectKey: (process.env.LD_PROJECT_KEY || "").trim(),
   offline: process.env.FLIGHT_DECK_OFFLINE === "1" || !(process.env.LD_SDK_KEY || "").trim(),
@@ -69,7 +84,12 @@ function addLog(entry) {
   console.log(`[flight-deck] ${item.kind}: ${item.text}`);
 }
 
-await flags.init({ sdkKey: CONFIG.sdkKey, offline: CONFIG.offline, log: addLog });
+await flags.init({
+  sdkKey: CONFIG.sdkKey,
+  offline: CONFIG.offline,
+  log: addLog,
+  application: { id: "flight-deck", version: CONFIG.commit },
+});
 
 TUNING.passengersPerSecond = CONFIG.rate;
 const world = new World({ seed: CONFIG.seed, log: addLog });
@@ -163,7 +183,14 @@ const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, "http://localhost").pathname;
   if (pathname === "/api/state") return sendJson(res, 200, state());
   if (pathname === "/api/health") {
-    return sendJson(res, 200, { ok: true, version: VERSION, mode: CONFIG.offline ? "offline" : "live", sdkReady: flags.snapshot().ready, uptimeSec: Math.round(process.uptime()) });
+    return sendJson(res, 200, {
+      ok: true,
+      version: VERSION,
+      commit: CONFIG.commit,
+      mode: CONFIG.offline ? "offline" : "live",
+      sdkReady: flags.snapshot().ready,
+      uptimeSec: Math.round(process.uptime()),
+    });
   }
   return serveStatic(req, res);
 });
