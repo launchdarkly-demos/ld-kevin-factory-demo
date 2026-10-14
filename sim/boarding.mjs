@@ -10,16 +10,25 @@ export const LANES = Object.freeze({
     label: "Zone boarding",
     gateToSeatSimMs: [240_000, 420_000], // 4 to 7 simulated minutes
   },
+  express: {
+    label: "Express lane",
+    gateToSeatSimMs: [120_000, 210_000], // 2 to 3.5 simulated minutes
+  },
 });
 
 /**
  * Choose the boarding lane for a passenger who has reached the gate while
  * boarding is open.
  *
+ * Passengers with no checked bags take the express lane at every gate: no bag
+ * tags to scan at the door and nothing to stow in the hold, so they are seated
+ * in roughly half the time and the zone queue shortens for everyone else.
+ *
  * @param {import("./passenger.mjs").Passenger} passenger
  * @returns {string | Promise<string>}  A key of LANES.
  */
 export function boardingLane(passenger) {
+  if (passenger.bags === 0) return "express";
   return "zone";
 }
 
