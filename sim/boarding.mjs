@@ -5,10 +5,16 @@
  * Durations are in simulated milliseconds. The world converts to real time.
  */
 
+import { isEnabled } from "../lib/flags.mjs";
+
 export const LANES = Object.freeze({
   zone: {
     label: "Zone boarding",
     gateToSeatSimMs: [240_000, 420_000], // 4 to 7 simulated minutes
+  },
+  express: {
+    label: "Express lane",
+    gateToSeatSimMs: [120_000, 210_000], // 2 to 3.5 simulated minutes
   },
 });
 
@@ -16,10 +22,18 @@ export const LANES = Object.freeze({
  * Choose the boarding lane for a passenger who has reached the gate while
  * boarding is open.
  *
+ * With enable-express-boarding on, passengers with no checked bags take the
+ * express lane at every gate: no bag tags to scan at the door and nothing to
+ * stow in the hold, so they are seated in roughly half the time and the zone
+ * queue shortens for everyone else. With it off, everyone uses zone boarding.
+ *
  * @param {import("./passenger.mjs").Passenger} passenger
- * @returns {string | Promise<string>}  A key of LANES.
+ * @returns {Promise<string>}  A key of LANES.
  */
-export function boardingLane(passenger) {
+export async function boardingLane(passenger) {
+  if (await isEnabled("enable-express-boarding", passenger.context, false)) {
+    if (passenger.bags === 0) return "express";
+  }
   return "zone";
 }
 
