@@ -108,6 +108,7 @@
 
     renderTape(server.flags);
     renderGauges(w.outcomes);
+    renderLanes(w.lanes || {});
     renderLog(server.log);
     operate.sync(server.ops);
   }
@@ -317,6 +318,18 @@
     setBar(el.gaugeMissed, "treat", t.missRate, maxRate, fmtPct, t.total, (v) => b.total >= MIN_SAMPLE && v > b.missRate * 1.5 && v > 0.04);
   }
 
+  function renderLanes(lanes) {
+    const el = document.getElementById("lanes");
+    const keys = Object.keys(lanes);
+    if (!keys.length) {
+      el.innerHTML = '<span class="empty">no boardings yet</span>';
+      return;
+    }
+    el.innerHTML = keys
+      .map((k) => `<span class="lane"><span class="label">${esc(k)}</span>${lanes[k].boarded} · ${lanes[k].avgBoardingMs ? (lanes[k].avgBoardingMs / 60000).toFixed(1) + " min" : "—"}</span>`)
+      .join("");
+  }
+
   function setBar(gauge, which, value, max, fmt, n, worseIf) {
     const fill = gauge.querySelector(`.fill.${which}`);
     const out = gauge.querySelector(`.value[data-k="${which}"]`);
@@ -475,11 +488,21 @@
         const blink = s.stage === "missed" && Math.floor(now / 160) % 2 === 0;
         color = blink ? "#ff8a80" : PALETTE.stop;
       }
+      // Express-lane boarders queue in a second lane beside the main door.
+      const express = s.stage === "boarding" && s.lane === "express";
+      const px = express ? s.x + 16 : s.x;
       ctx.globalAlpha = s.stage === "boarding" ? 0.45 : 1;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.arc(px, s.y, r, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
+      if (express) {
+        ctx.strokeStyle = "#e8edf5";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 1;
       if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
         ctx.strokeStyle = "rgba(245,185,66,0.35)";
@@ -501,14 +524,23 @@
       [PALETTE.base, "baseline path"],
       [PALETTE.treat, "new path (a flag is on)"],
       [PALETTE.stop, "missed boarding"],
+      ["ring", "express lane (carry-on only)"],
     ];
     let x = 20;
     const y = 22;
     for (const [color, text] of items) {
-      ctx.beginPath();
-      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
+      if (color === "ring") {
+        ctx.strokeStyle = "#e8edf5";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
       label(text, x + 10, y, PALETTE.muted, "left");
       x += 10 + ctx.measureText(text).width + 24;
     }
