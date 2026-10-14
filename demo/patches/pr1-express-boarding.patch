@@ -1,25 +1,69 @@
-From 7a20602b27d59397fc3e02458e560a2c63b08081 Mon Sep 17 00:00:00 2001
+From a0c617870c811238822d27f19e300fab97c171a5 Mon Sep 17 00:00:00 2001
 From: Kevin Cochran <40193276+kevincloud@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 23:00:43 -0400
-Subject: [PATCH] Add an express boarding lane for carry-on-only passengers
+Subject: [PATCH] Add an express boarding lane and a lanes endpoint for gate
+ operations
 
-Passengers with no checked bags now board through an express lane at every
-gate, which seats them in roughly half the time and shortens the zone queue
-for everyone else. The deck draws express boarders in a second lane beside
-the door.
+Passengers with no checked bags board through an express lane at every gate,
+which seats them in roughly half the time and shortens the zone queue for
+everyone else. Per-lane boarding counts and average gate-to-seat time are
+exposed at GET /api/lanes and shown on the deck's instruments panel.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 ---
- public/deck.js         | 29 ++++++++++++++++++++++++-----
+ public/deck.css        |  3 +++
+ public/deck.js         | 42 +++++++++++++++++++++++++++++++++++++-----
+ public/index.html      |  4 ++++
+ server.mjs             |  2 ++
  sim/boarding.mjs       |  9 +++++++++
+ sim/world.mjs          | 14 ++++++++++++++
  test/boarding.test.mjs | 30 ++++++++++++++++++++++++++----
- 3 files changed, 59 insertions(+), 9 deletions(-)
+ test/world.test.mjs    |  2 ++
+ 8 files changed, 97 insertions(+), 9 deletions(-)
 
+diff --git a/public/deck.css b/public/deck.css
+index b3d1aaf..68c3240 100644
+--- a/public/deck.css
++++ b/public/deck.css
+@@ -171,3 +171,6 @@ html, body {
+ #log li.autopilot { color: var(--text); font-weight: 600; }
+ .tape .flag.landed .fill { background: var(--ok); }
+ .tape .flag.landed .pct { color: var(--ok); }
++.lanes { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; font-variant-numeric: tabular-nums; }
++.lanes .lane .label { color: var(--muted); margin-right: 4px; }
++.lanes .empty { font-size: 12px; }
 diff --git a/public/deck.js b/public/deck.js
-index 88f307a..c681149 100644
+index fbf7239..e56e6eb 100644
 --- a/public/deck.js
 +++ b/public/deck.js
-@@ -278,11 +278,21 @@
+@@ -97,6 +97,7 @@
+ 
+     renderTape(server.flags);
+     renderGauges(w.outcomes);
++    renderLanes(w.lanes || {});
+     renderLog(server.log);
+   }
+ 
+@@ -130,6 +131,18 @@
+     setBar(el.gaugeMissed, "treat", t.missRate, maxRate, fmtPct, t.total, (v) => b.total >= MIN_SAMPLE && v > b.missRate * 1.5 && v > 0.04);
+   }
+ 
++  function renderLanes(lanes) {
++    const el = document.getElementById("lanes");
++    const keys = Object.keys(lanes);
++    if (!keys.length) {
++      el.innerHTML = '<span class="empty">no boardings yet</span>';
++      return;
++    }
++    el.innerHTML = keys
++      .map((k) => `<span class="lane"><span class="label">${esc(k)}</span>${lanes[k].boarded} · ${lanes[k].avgBoardingMs ? (lanes[k].avgBoardingMs / 60000).toFixed(1) + " min" : "—"}</span>`)
++      .join("");
++  }
++
+   function setBar(gauge, which, value, max, fmt, n, worseIf) {
+     const fill = gauge.querySelector(`.fill.${which}`);
+     const out = gauge.querySelector(`.value[data-k="${which}"]`);
+@@ -288,11 +301,21 @@
          const blink = s.stage === "missed" && Math.floor(now / 160) % 2 === 0;
          color = blink ? "#ff8a80" : PALETTE.stop;
        }
@@ -42,7 +86,7 @@ index 88f307a..c681149 100644
        ctx.globalAlpha = 1;
        if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
          ctx.strokeStyle = "rgba(245,185,66,0.35)";
-@@ -304,14 +314,23 @@
+@@ -314,14 +337,23 @@
        [PALETTE.base, "baseline path"],
        [PALETTE.treat, "new path (a flag is on)"],
        [PALETTE.stop, "missed boarding"],
@@ -70,6 +114,34 @@ index 88f307a..c681149 100644
        label(text, x + 10, y, PALETTE.muted, "left");
        x += 10 + ctx.measureText(text).width + 24;
      }
+diff --git a/public/index.html b/public/index.html
+index 6f18e18..4e04d23 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -38,6 +38,10 @@
+             <div class="bar"><span class="label">new path</span><div class="track"><div class="fill treat" style="width:0%"></div></div><span class="value" data-k="treat">—</span></div>
+           </div>
+         </div>
++        <div class="gauge" id="gauge-lanes">
++          <div class="gauge-head"><span>Boarding lanes</span><span class="unit">boarded · avg gate to seat</span></div>
++          <div id="lanes" class="lanes"><span class="empty">no boardings yet</span></div>
++        </div>
+         <div class="gauge" id="gauge-missed">
+           <div class="gauge-head"><span>Missed boarding</span><span class="unit">share of passengers</span></div>
+           <div class="bars">
+diff --git a/server.mjs b/server.mjs
+index 4862fa6..d6ae06b 100644
+--- a/server.mjs
++++ b/server.mjs
+@@ -184,6 +184,8 @@ const server = http.createServer((req, res) => {
+   }
+   const pathname = new URL(req.url, "http://localhost").pathname;
+   if (pathname === "/api/state") return sendJson(res, 200, state());
++  // Per-lane boarding counts and average gate-to-seat time, for gate operations.
++  if (pathname === "/api/lanes") return sendJson(res, 200, { since: "start", lanes: world.laneStats() });
+   if (pathname === "/api/health") {
+     return sendJson(res, 200, {
+       ok: true,
 diff --git a/sim/boarding.mjs b/sim/boarding.mjs
 index 99c65c4..eb6e1ab 100644
 --- a/sim/boarding.mjs
@@ -100,6 +172,48 @@ index 99c65c4..eb6e1ab 100644
    return "zone";
  }
  
+diff --git a/sim/world.mjs b/sim/world.mjs
+index b01c370..8ce97d3 100644
+--- a/sim/world.mjs
++++ b/sim/world.mjs
+@@ -106,6 +106,7 @@ export class World {
+     this.flightSeq = 100 + Math.floor(this.rng() * 400);
+     this.outcomes = new Outcomes(60_000);
+     this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0 };
++    this.lanes = {}; // lane key -> { boarded, msTotal }, since start
+     // Stagger the first flights so the gates are not all in lockstep.
+     for (const gate of this.gates) this.scheduleFlight(gate, between(this.rng, [0, TUNING.boardingWindow]));
+   }
+@@ -399,9 +400,21 @@ export class World {
+     this.outcomes.record({ path: this.pathOf(p), missed: false, boardingMs: p.boardingMs });
+     track("boarding-time-ms", p.context, p.boardingMs);
+     this.counters.boarded += 1;
++    const lane = (this.lanes[p.lane] ||= { boarded: 0, msTotal: 0 });
++    lane.boarded += 1;
++    lane.msTotal += p.boardingMs;
+     p.stage = "gone";
+   }
+ 
++  /** Boardings and average gate-to-seat time per lane since the simulation started. */
++  laneStats() {
++    const out = {};
++    for (const [key, s] of Object.entries(this.lanes)) {
++      out[key] = { boarded: s.boarded, avgBoardingMs: s.boarded ? Math.round(s.msTotal / s.boarded) : null };
++    }
++    return out;
++  }
++
+   miss(p) {
+     if (process.env.FLIGHT_DECK_DEBUG) {
+       const f = p.flight;
+@@ -475,6 +488,7 @@ export class World {
+         gate: p.flight ? p.flight.gate.id : null,
+       })),
+       outcomes: this.outcomes.summary(),
++      lanes: this.laneStats(),
+     };
+   }
+ }
 diff --git a/test/boarding.test.mjs b/test/boarding.test.mjs
 index 4099bd6..869a97a 100644
 --- a/test/boarding.test.mjs
@@ -146,6 +260,19 @@ index 4099bd6..869a97a 100644
    const rng = mulberry32(2);
    const [lo, hi] = LANES.zone.gateToSeatSimMs;
    for (let i = 0; i < 200; i += 1) {
+diff --git a/test/world.test.mjs b/test/world.test.mjs
+index 47d3c5c..7ed9d00 100644
+--- a/test/world.test.mjs
++++ b/test/world.test.mjs
+@@ -31,6 +31,8 @@ test("passengers flow through the terminal and board", async () => {
+     assert.equal(p.path, "baseline");
+   }
+   assert.equal(snap.gates.length, 8);
++  assert.ok(snap.lanes.zone && snap.lanes.zone.boarded > 0, "zone lane should report boardings");
++  assert.ok(snap.lanes.zone.avgBoardingMs > 0);
+   assert.ok(logs.some((e) => e.kind === "flight"), "flights should write to the log");
+ });
+ 
 -- 
 2.50.1 (Apple Git-155)
 
