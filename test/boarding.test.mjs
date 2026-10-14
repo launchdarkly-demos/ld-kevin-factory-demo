@@ -60,7 +60,8 @@ test("gate-to-seat time stays inside the zone lane's range", () => {
   }
 });
 
-test("Plus and Elite passengers get an upgrade offer at the door; Basic passengers do not", async () => {
+test("with enable-upgrade-offers on, Plus and Elite passengers get an upgrade offer at the door; Basic passengers do not", async () => {
+  await withFlags({ "enable-upgrade-offers": true }, async () => {
   const rng = mulberry32(4);
   let offered = 0;
   let accepted = 0;
@@ -78,9 +79,20 @@ test("Plus and Elite passengers get an upgrade offer at the door; Basic passenge
   }
   assert.ok(offered > 50, `offered ${offered}`);
   assert.ok(accepted > 0 && accepted < offered, `accepted ${accepted} of ${offered}`);
+  });
+});
+
+test("with enable-upgrade-offers off, nobody gets an upgrade offer", async () => {
+  await withFlags({}, async () => {
+    const rng = mulberry32(4);
+    for (let i = 1; i <= 100; i += 1) {
+      assert.equal(await upgradeOffer(createPassenger(i, rng), rng), null);
+    }
+  });
 });
 
 test("an upgrade offer takes between 2.5 and 4 simulated minutes", async () => {
+  await withFlags({ "enable-upgrade-offers": true }, async () => {
   const rng = mulberry32(5);
   const [lo, hi] = UPGRADE_OFFER.durationSimMs;
   for (let i = 1; i <= 200; i += 1) {
@@ -89,6 +101,7 @@ test("an upgrade offer takes between 2.5 and 4 simulated minutes", async () => {
     if (!offer) continue;
     assert.ok(offer.durationSimMs >= lo && offer.durationSimMs <= hi, `${offer.durationSimMs} outside ${lo}..${hi}`);
   }
+  });
 });
 
 test("an unknown lane falls back to zone timing", () => {
