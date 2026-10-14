@@ -16,6 +16,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import * as flags from "./lib/flags.mjs";
+import { Autopilot } from "./lib/autopilot.mjs";
 import { World, TUNING } from "./sim/world.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -109,18 +110,19 @@ setInterval(() => {
 }, TICK_MS).unref();
 
 // ---------------------------------------------------------------------------
-// Autopilot status, derived from measured flag shares
+// Autopilot status, derived from measured flag shares. Updated on a timer so
+// the flight log records steps and rollbacks even with no browser attached.
 // ---------------------------------------------------------------------------
 
-function autopilot(flagSnapshot) {
-  const lead = flagSnapshot.flags[0];
-  if (!lead) return { lamp: "TAXI", flagKey: null, share: 0, detail: "no flags evaluated yet" };
-  const { key, share, peakShare } = lead;
-  if (share >= 95) return { lamp: "CRUISE", flagKey: key, share, detail: `${key} at ${share}%` };
-  if (share > 0) return { lamp: "CLIMB", flagKey: key, share, detail: `${key} at ${share}%` };
-  if (peakShare > 0) return { lamp: "DISENGAGED", flagKey: key, share, detail: `${key} rolled back from ${peakShare}%` };
-  return { lamp: "TAXI", flagKey: key, share, detail: `${key} off for everyone` };
-}
+const autopilot = new Autopilot(addLog);
+let autopilotState = autopilot.update([]);
+setInterval(() => {
+  try {
+    autopilotState = autopilot.update(flags.snapshot().flags);
+  } catch (err) {
+    addLog({ kind: "error", text: `autopilot update failed: ${err && err.message ? err.message : err}` });
+  }
+}, 2000).unref();
 
 function state() {
   const flagSnapshot = flags.snapshot();
@@ -132,7 +134,7 @@ function state() {
     projectKey: CONFIG.projectKey,
     world: world.snapshot(),
     flags: flagSnapshot.flags,
-    autopilot: autopilot(flagSnapshot),
+    autopilot: autopilotState,
     log: flightLog.slice(-40),
   };
 }

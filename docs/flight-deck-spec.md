@@ -300,7 +300,26 @@ shown already at cruise, which cuts it to about 12.
   minutes against 5.5 baseline; no misses on the new path.
 - **Instrument polish needed.** Once the baseline shrinks to a handful of
   passengers its miss rate swings wildly (3 of 30 read as 10%). Show sample
-  counts or blank a gauge below ~20 passengers.
+  counts or blank a gauge below ~20 passengers. (Done in `71ee058`.)
+
+## Dry run 2 findings (2026-10-14, PR #2)
+
+- **Classifier flagged it unaided.** A per-passenger change with a new API
+  surface and a stated customer-facing cost got a plan in ~4 minutes, including
+  the warning that the boarding-time guard might roll it back.
+- **The deploy signal is turning the flag on.** With the flag off, nothing
+  started the release: not evaluations, not SDK application version, not code
+  references. Flipping the flag on (default rule Control, no release rule)
+  made the engine add the policy's guarded release within a minute. Full
+  write-up: [factory-release-trigger-report.md](factory-release-trigger-report.md).
+- **Auto-rollback works and is fast.** 10% at +1 min, 25% at +2 min, rollback
+  at about +3 min with ~25 treated passengers. Deck showed new path 7 to 8
+  simulated minutes against 4.3 baseline, then share 0% and DISENGAGED.
+- **Demo script.** Merge with the flag off; when the deploy is live, turn the
+  flag on serving Control; autopilot does the rest. Two honest steps, no
+  manual release.
+- **Code references workflow added** (`.github/workflows/find-code-refs.yml`,
+  secret `LD_API_KEY`). Keep it regardless; the flag pages now link to code.
 
 ## Open questions, in the order they can bite
 

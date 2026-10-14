@@ -107,7 +107,7 @@
     }
     el.tape.innerHTML = flagList
       .map(
-        (f) => `<div class="flag"><div class="key"><span>${esc(f.key)}</span><span class="pct">${f.share}%${f.landed ? " · landed" : ""}</span></div>` +
+        (f) => `<div class="flag${f.landed ? " landed" : ""}"><div class="key"><span>${esc(f.key)}</span><span class="pct">${f.share}%${f.landed ? " · landed" : ""}</span></div>` +
           `<div class="track"><div class="fill" style="width:${f.share}%"></div></div>` +
           `<div class="key" style="color:#5e6878;font-size:11px"><span>${f.trueCount} of ${f.total} passengers</span><span>peak ${f.peakShare}%</span></div></div>`,
       )

@@ -168,3 +168,6 @@ html, body {
 #log li.flag { color: var(--treat); }
 #log li.error { color: var(--stop); }
 #log li.sdk { color: var(--ok); }
+#log li.autopilot { color: var(--text); font-weight: 600; }
+.tape .flag.landed .fill { background: var(--ok); }
+.tape .flag.landed .pct { color: var(--ok); }

@@ -1,0 +1,151 @@
+From 7a20602b27d59397fc3e02458e560a2c63b08081 Mon Sep 17 00:00:00 2001
+From: Kevin Cochran <40193276+kevincloud@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 23:00:43 -0400
+Subject: [PATCH] Add an express boarding lane for carry-on-only passengers
+
+Passengers with no checked bags now board through an express lane at every
+gate, which seats them in roughly half the time and shortens the zone queue
+for everyone else. The deck draws express boarders in a second lane beside
+the door.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ public/deck.js         | 29 ++++++++++++++++++++++++-----
+ sim/boarding.mjs       |  9 +++++++++
+ test/boarding.test.mjs | 30 ++++++++++++++++++++++++++----
+ 3 files changed, 59 insertions(+), 9 deletions(-)
+
+diff --git a/public/deck.js b/public/deck.js
+index 88f307a..c681149 100644
+--- a/public/deck.js
++++ b/public/deck.js
+@@ -278,11 +278,21 @@
+         const blink = s.stage === "missed" && Math.floor(now / 160) % 2 === 0;
+         color = blink ? "#ff8a80" : PALETTE.stop;
+       }
++      // Express-lane boarders queue in a second lane beside the main door.
++      const express = s.stage === "boarding" && s.lane === "express";
++      const px = express ? s.x + 16 : s.x;
+       ctx.globalAlpha = s.stage === "boarding" ? 0.45 : 1;
+       ctx.beginPath();
+-      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
++      ctx.arc(px, s.y, r, 0, Math.PI * 2);
+       ctx.fillStyle = color;
+       ctx.fill();
++      if (express) {
++        ctx.strokeStyle = "#e8edf5";
++        ctx.lineWidth = 1.5;
++        ctx.beginPath();
++        ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
++        ctx.stroke();
++      }
+       ctx.globalAlpha = 1;
+       if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
+         ctx.strokeStyle = "rgba(245,185,66,0.35)";
+@@ -304,14 +314,23 @@
+       [PALETTE.base, "baseline path"],
+       [PALETTE.treat, "new path (a flag is on)"],
+       [PALETTE.stop, "missed boarding"],
++      ["ring", "express lane (carry-on only)"],
+     ];
+     let x = 20;
+     const y = 22;
+     for (const [color, text] of items) {
+-      ctx.beginPath();
+-      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+-      ctx.fillStyle = color;
+-      ctx.fill();
++      if (color === "ring") {
++        ctx.strokeStyle = "#e8edf5";
++        ctx.lineWidth = 1.5;
++        ctx.beginPath();
++        ctx.arc(x, y, 6, 0, Math.PI * 2);
++        ctx.stroke();
++      } else {
++        ctx.beginPath();
++        ctx.arc(x, y, 4.5, 0, Math.PI * 2);
++        ctx.fillStyle = color;
++        ctx.fill();
++      }
+       label(text, x + 10, y, PALETTE.muted, "left");
+       x += 10 + ctx.measureText(text).width + 24;
+     }
+diff --git a/sim/boarding.mjs b/sim/boarding.mjs
+index 99c65c4..eb6e1ab 100644
+--- a/sim/boarding.mjs
++++ b/sim/boarding.mjs
+@@ -10,16 +10,25 @@ export const LANES = Object.freeze({
+     label: "Zone boarding",
+     gateToSeatSimMs: [240_000, 420_000], // 4 to 7 simulated minutes
+   },
++  express: {
++    label: "Express lane",
++    gateToSeatSimMs: [120_000, 210_000], // 2 to 3.5 simulated minutes
++  },
+ });
+ 
+ /**
+  * Choose the boarding lane for a passenger who has reached the gate while
+  * boarding is open.
+  *
++ * Passengers with no checked bags take the express lane at every gate: no bag
++ * tags to scan at the door and nothing to stow in the hold, so they are seated
++ * in roughly half the time and the zone queue shortens for everyone else.
++ *
+  * @param {import("./passenger.mjs").Passenger} passenger
+  * @returns {string | Promise<string>}  A key of LANES.
+  */
+ export function boardingLane(passenger) {
++  if (passenger.bags === 0) return "express";
+   return "zone";
+ }
+ 
+diff --git a/test/boarding.test.mjs b/test/boarding.test.mjs
+index 4099bd6..869a97a 100644
+--- a/test/boarding.test.mjs
++++ b/test/boarding.test.mjs
+@@ -5,15 +5,37 @@ import { boardingLane, gateToSeatMs, LANES } from "../sim/boarding.mjs";
+ import { createPassenger } from "../sim/passenger.mjs";
+ import { mulberry32 } from "../sim/world.mjs";
+ 
+-test("every passenger boards through the zone lane", async () => {
++test("carry-on-only passengers take the express lane", async () => {
+   const rng = mulberry32(1);
+-  for (let i = 1; i <= 50; i += 1) {
++  let express = 0;
++  let zone = 0;
++  for (let i = 1; i <= 200; i += 1) {
+     const p = createPassenger(i, rng);
+-    assert.equal(await boardingLane(p), "zone");
++    const lane = await boardingLane(p);
++    if (p.bags === 0) {
++      assert.equal(lane, "express");
++      express += 1;
++    } else {
++      assert.equal(lane, "zone");
++      zone += 1;
++    }
+   }
++  assert.ok(express > 0 && zone > 0, "the sample should include both kinds of passenger");
+ });
+ 
+-test("gate-to-seat time stays inside the lane's range", () => {
++test("the express lane is faster than zone boarding", () => {
++  const [expressLo, expressHi] = LANES.express.gateToSeatSimMs;
++  const [zoneLo, zoneHi] = LANES.zone.gateToSeatSimMs;
++  assert.ok(expressHi < zoneLo, "every express boarding should beat the fastest zone boarding");
++  const rng = mulberry32(2);
++  for (let i = 0; i < 200; i += 1) {
++    const ms = gateToSeatMs("express", rng);
++    assert.ok(ms >= expressLo && ms <= expressHi, `${ms} outside ${expressLo}..${expressHi}`);
++  }
++  assert.ok(zoneHi > zoneLo);
++});
++
++test("gate-to-seat time stays inside the zone lane's range", () => {
+   const rng = mulberry32(2);
+   const [lo, hi] = LANES.zone.gateToSeatSimMs;
+   for (let i = 0; i < 200; i += 1) {
+-- 
+2.50.1 (Apple Git-155)
+

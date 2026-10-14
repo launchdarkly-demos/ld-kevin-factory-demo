@@ -1,0 +1,217 @@
+From deff67dbe1caa404df29b2295615364969885f74 Mon Sep 17 00:00:00 2001
+From: Kevin Cochran <40193276+kevincloud@users.noreply.github.com>
+Date: Wed, 14 Oct 2026 10:09:52 -0400
+Subject: [PATCH] Offer paid upgrades to Plus and Elite members at the gate
+
+The gate agent offers an upgrade to eligible passengers when they reach the
+door, processes the reseating when they accept, and the ops board exposes
+offer and acceptance counts at /api/upgrades. The offer takes 2.5 to 4
+simulated minutes per passenger before they head to their seat. The deck
+rings passengers who are mid-offer.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ public/deck.js         | 13 +++++++++++--
+ server.mjs             |  4 ++++
+ sim/boarding.mjs       | 27 +++++++++++++++++++++++++++
+ sim/world.mjs          | 16 +++++++++++++---
+ test/boarding.test.mjs | 33 ++++++++++++++++++++++++++++++++-
+ 5 files changed, 87 insertions(+), 6 deletions(-)
+
+diff --git a/public/deck.js b/public/deck.js
+index 36886e4..875b8cb 100644
+--- a/public/deck.js
++++ b/public/deck.js
+@@ -303,6 +303,14 @@
+         ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
+         ctx.stroke();
+       }
++      // Passengers being offered an upgrade hold at the agent's podium beside the door.
++      if (s.stage === "boarding" && s.offer) {
++        ctx.strokeStyle = s.offer.accepted ? "#c77dff" : "#8a6bb5";
++        ctx.lineWidth = 1.5;
++        ctx.beginPath();
++        ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
++        ctx.stroke();
++      }
+       ctx.globalAlpha = 1;
+       if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
+         ctx.strokeStyle = "rgba(245,185,66,0.35)";
+@@ -325,12 +333,13 @@
+       [PALETTE.treat, "new path (a flag is on)"],
+       [PALETTE.stop, "missed boarding"],
+       ["ring", "express lane (carry-on only)"],
++      ["ring:#c77dff", "upgrade offer at the door"],
+     ];
+     let x = 20;
+     const y = 22;
+     for (const [color, text] of items) {
+-      if (color === "ring") {
+-        ctx.strokeStyle = "#e8edf5";
++      if (color.startsWith("ring")) {
++        ctx.strokeStyle = color.includes(":") ? color.split(":")[1] : "#e8edf5";
+         ctx.lineWidth = 1.5;
+         ctx.beginPath();
+         ctx.arc(x, y, 6, 0, Math.PI * 2);
+diff --git a/server.mjs b/server.mjs
+index b115d4a..d9a01db 100644
+--- a/server.mjs
++++ b/server.mjs
+@@ -182,6 +182,10 @@ const server = http.createServer((req, res) => {
+   }
+   const pathname = new URL(req.url, "http://localhost").pathname;
+   if (pathname === "/api/state") return sendJson(res, 200, state());
++  if (pathname === "/api/upgrades") {
++    const { offers, upgrades } = world.counters;
++    return sendJson(res, 200, { offers, accepted: upgrades, acceptanceRate: offers ? upgrades / offers : null });
++  }
+   if (pathname === "/api/health") {
+     return sendJson(res, 200, {
+       ok: true,
+diff --git a/sim/boarding.mjs b/sim/boarding.mjs
+index fa46afe..dbb1a68 100644
+--- a/sim/boarding.mjs
++++ b/sim/boarding.mjs
+@@ -47,3 +47,30 @@ export function gateToSeatMs(lane, rng) {
+   const [lo, hi] = (LANES[lane] || LANES.zone).gateToSeatSimMs;
+   return Math.round(lo + rng() * (hi - lo));
+ }
++
++export const UPGRADE_OFFER = Object.freeze({
++  eligibleTiers: ["plus", "elite"],
++  acceptOdds: { plus: 0.25, elite: 0.4 },
++  // The offer conversation, payment, and reseating at the door, in simulated
++  // milliseconds. It happens before the passenger heads to their seat.
++  durationSimMs: [150_000, 240_000],
++});
++
++/**
++ * Decide whether the gate agent offers a paid upgrade to a passenger who has
++ * reached the door. Plus and Elite members get the offer; everyone else
++ * boards straight away.
++ *
++ * @param {import("./passenger.mjs").Passenger} passenger
++ * @param {() => number} rng
++ * @returns {{ tier: string, accepted: boolean, durationSimMs: number } | null | Promise<...>}
++ */
++export function upgradeOffer(passenger, rng) {
++  if (!UPGRADE_OFFER.eligibleTiers.includes(passenger.tier)) return null;
++  const [lo, hi] = UPGRADE_OFFER.durationSimMs;
++  return {
++    tier: passenger.tier,
++    accepted: rng() < UPGRADE_OFFER.acceptOdds[passenger.tier],
++    durationSimMs: Math.round(lo + rng() * (hi - lo)),
++  };
++}
+diff --git a/sim/world.mjs b/sim/world.mjs
+index b01c370..aedd3fb 100644
+--- a/sim/world.mjs
++++ b/sim/world.mjs
+@@ -14,7 +14,7 @@
+  * world awaits them.
+  */
+ 
+-import { boardingLane, gateToSeatMs } from "./boarding.mjs";
++import { boardingLane, gateToSeatMs, upgradeOffer } from "./boarding.mjs";
+ import { buildGates, onFlightDelayed } from "./gates.mjs";
+ import { createPassenger } from "./passenger.mjs";
+ import { Outcomes } from "./metrics.mjs";
+@@ -105,7 +105,7 @@ export class World {
+     this.spawnDebt = 0;
+     this.flightSeq = 100 + Math.floor(this.rng() * 400);
+     this.outcomes = new Outcomes(60_000);
+-    this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0 };
++    this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0, offers: 0, upgrades: 0 };
+     // Stagger the first flights so the gates are not all in lockstep.
+     for (const gate of this.gates) this.scheduleFlight(gate, between(this.rng, [0, TUNING.boardingWindow]));
+   }
+@@ -230,6 +230,7 @@ export class World {
+     p.checkinDwell = between(this.rng, TUNING.checkinDwell);
+     p.securityDwell = this.rng() < TUNING.securitySlowOdds ? between(this.rng, TUNING.securitySlowDwell) : between(this.rng, TUNING.securityDwell);
+     p.lane = null;
++    p.offer = null;
+     p.boardingMs = null;
+     p.missed = false;
+     p.rerouted = false;
+@@ -374,10 +375,18 @@ export class World {
+     p.stage = "deciding";
+     Promise.resolve()
+       .then(() => boardingLane(p))
+-      .then((lane) => {
++      .then(async (lane) => {
+         if (p.stage !== "deciding") return;
+         p.lane = lane || "zone";
+         p.boardingMs = gateToSeatMs(p.lane, this.rng);
++        const offer = await upgradeOffer(p, this.rng);
++        if (p.stage !== "deciding") return;
++        if (offer) {
++          p.offer = offer;
++          p.boardingMs += offer.durationSimMs;
++          this.counters.offers += 1;
++          if (offer.accepted) this.counters.upgrades += 1;
++        }
+         p.dwell = p.boardingMs / SIM_SPEED / 1000;
+         p.stage = "boarding";
+       })
+@@ -467,6 +476,7 @@ export class World {
+         y: Math.round(p.y + p.depth),
+         stage: p.stage,
+         lane: p.lane,
++        offer: p.offer ? { accepted: p.offer.accepted } : null,
+         path: this.pathOf(p),
+         bags: p.bags,
+         tier: p.tier,
+diff --git a/test/boarding.test.mjs b/test/boarding.test.mjs
+index 425368a..79622be 100644
+--- a/test/boarding.test.mjs
++++ b/test/boarding.test.mjs
+@@ -1,7 +1,7 @@
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ 
+-import { boardingLane, gateToSeatMs, LANES } from "../sim/boarding.mjs";
++import { boardingLane, gateToSeatMs, upgradeOffer, LANES, UPGRADE_OFFER } from "../sim/boarding.mjs";
+ import { createPassenger } from "../sim/passenger.mjs";
+ import { mulberry32 } from "../sim/world.mjs";
+ import { withFlags } from "../lib/flags.mjs";
+@@ -60,6 +60,37 @@ test("gate-to-seat time stays inside the zone lane's range", () => {
+   }
+ });
+ 
++test("Plus and Elite passengers get an upgrade offer at the door; Basic passengers do not", async () => {
++  const rng = mulberry32(4);
++  let offered = 0;
++  let accepted = 0;
++  for (let i = 1; i <= 300; i += 1) {
++    const p = createPassenger(i, rng);
++    const offer = await upgradeOffer(p, rng);
++    if (p.tier === "basic") {
++      assert.equal(offer, null);
++      continue;
++    }
++    assert.ok(offer, `${p.tier} passenger should be offered an upgrade`);
++    assert.equal(offer.tier, p.tier);
++    offered += 1;
++    if (offer.accepted) accepted += 1;
++  }
++  assert.ok(offered > 50, `offered ${offered}`);
++  assert.ok(accepted > 0 && accepted < offered, `accepted ${accepted} of ${offered}`);
++});
++
++test("an upgrade offer takes between 2.5 and 4 simulated minutes", async () => {
++  const rng = mulberry32(5);
++  const [lo, hi] = UPGRADE_OFFER.durationSimMs;
++  for (let i = 1; i <= 200; i += 1) {
++    const p = createPassenger(i, rng);
++    const offer = await upgradeOffer(p, rng);
++    if (!offer) continue;
++    assert.ok(offer.durationSimMs >= lo && offer.durationSimMs <= hi, `${offer.durationSimMs} outside ${lo}..${hi}`);
++  }
++});
++
+ test("an unknown lane falls back to zone timing", () => {
+   const rng = mulberry32(3);
+   const [lo, hi] = LANES.zone.gateToSeatSimMs;
+-- 
+2.50.1 (Apple Git-155)
+
