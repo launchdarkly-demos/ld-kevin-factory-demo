@@ -1,3 +1,5 @@
+import { isEnabled } from "../lib/flags.mjs";
+
 /**
  * Boarding: which lane a passenger uses at the gate and how long it takes them
  * to get from the gate to their seat.
@@ -23,12 +25,16 @@ export const LANES = Object.freeze({
  * Passengers with no checked bags take the express lane at every gate: no bag
  * tags to scan at the door and nothing to stow in the hold, so they are seated
  * in roughly half the time and the zone queue shortens for everyone else.
+ * Guarded by the enable-express-boarding flag; when it is off (or LaunchDarkly
+ * is unreachable) everyone uses zone boarding, as before.
  *
  * @param {import("./passenger.mjs").Passenger} passenger
  * @returns {string | Promise<string>}  A key of LANES.
  */
-export function boardingLane(passenger) {
-  if (passenger.bags === 0) return "express";
+export async function boardingLane(passenger) {
+  if (passenger.bags === 0 && (await isEnabled("enable-express-boarding", passenger.context, false))) {
+    return "express";
+  }
   return "zone";
 }
 
