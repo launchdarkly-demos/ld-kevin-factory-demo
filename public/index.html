@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flight Deck</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="deck.css">
+</head>
+<body>
+  <header id="strip">
+    <span class="brand">FLIGHT DECK</span>
+    <span class="cell" id="mode" data-mode="offline">offline</span>
+    <span class="cell" id="clock">00:00</span>
+    <span class="cell grow" id="counters">boarding 0 · missed 0 · departures 0</span>
+    <span class="cell lamp" id="lamp" data-lamp="TAXI">TAXI</span>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <main id="layout">
+    <section id="stage">
+      <canvas id="terminal" width="960" height="540"></canvas>
+    </section>
+
+    <aside id="panels">
+      <section class="panel" id="altitude">
+        <h2>Altitude <span class="sub">share of passengers on the new path, last 60 s</span></h2>
+        <div id="tape" class="tape"><p class="empty">No flags evaluated yet. The tape fills once a flag is wired.</p></div>
+      </section>
+
+      <section class="panel" id="instruments">
+        <h2>Instruments <span class="sub">last 60 s, baseline vs new path</span></h2>
+        <div class="gauge" id="gauge-boarding">
+          <div class="gauge-head"><span>Boarding time</span><span class="unit">gate to seat, sim minutes</span></div>
+          <div class="bars">
+            <div class="bar"><span class="label">baseline</span><div class="track"><div class="fill base" style="width:0%"></div></div><span class="value" data-k="base">—</span></div>
+            <div class="bar"><span class="label">new path</span><div class="track"><div class="fill treat" style="width:0%"></div></div><span class="value" data-k="treat">—</span></div>
+          </div>
+        </div>
+        <div class="gauge" id="gauge-missed">
+          <div class="gauge-head"><span>Missed boarding</span><span class="unit">share of passengers</span></div>
+          <div class="bars">
+            <div class="bar"><span class="label">baseline</span><div class="track"><div class="fill base" style="width:0%"></div></div><span class="value" data-k="base">—</span></div>
+            <div class="bar"><span class="label">new path</span><div class="track"><div class="fill treat" style="width:0%"></div></div><span class="value" data-k="treat">—</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="flightlog">
+        <h2>Flight log</h2>
+        <ul id="log"></ul>
+      </section>
+    </aside>
+  </main>
+
+  <script src="deck.js"></script>
+</body>
+</html>
