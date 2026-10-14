@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Reset the Release AutoPilot demo to its starting state.
 #
-#   1. Close any open pull requests on the demo repo and delete their branches.
+#   1. Close any open pull requests on the demo repo and delete the branches
+#      that were pull-request heads (never main or develop).
 #   2. Force main back to the flag-free baseline (tag demo-baseline).
 #   3. Delete every feature flag in the LaunchDarkly demo project, which also
 #      removes their release configurations.
@@ -44,7 +45,10 @@ OPEN_PRS="$(gh pr list --repo "$REPO" --state open --json number,headRefName --j
 if [ -n "$OPEN_PRS" ]; then echo "$OPEN_PRS" | sed 's/^/  close #/'; else echo "  none open"; fi
 
 echo "== Branches to delete"
-BRANCHES="$(gh api "repos/$REPO/branches" --jq '.[].name' | grep -v '^main$' || true)"
+# Only branches that were pull-request heads. Never main or develop.
+PR_HEADS="$(gh pr list --repo "$REPO" --state all --limit 200 --json headRefName --jq '.[].headRefName' | sort -u)"
+EXISTING="$(gh api "repos/$REPO/branches" --jq '.[].name' | sort -u)"
+BRANCHES="$(comm -12 <(echo "$PR_HEADS") <(echo "$EXISTING") | grep -vE '^(main|develop)$' || true)"
 if [ -n "$BRANCHES" ]; then echo "$BRANCHES" | sed 's/^/  /'; else echo "  none"; fi
 
 echo "== main"
