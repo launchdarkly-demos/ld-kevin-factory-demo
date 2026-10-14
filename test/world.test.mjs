@@ -31,6 +31,8 @@ test("passengers flow through the terminal and board", async () => {
     assert.equal(p.path, "baseline");
   }
   assert.equal(snap.gates.length, 8);
+  assert.ok(snap.lanes.zone && snap.lanes.zone.boarded > 0, "zone lane should report boardings");
+  assert.ok(snap.lanes.zone.avgBoardingMs > 0);
   assert.ok(logs.some((e) => e.kind === "flight"), "flights should write to the log");
 });
 
