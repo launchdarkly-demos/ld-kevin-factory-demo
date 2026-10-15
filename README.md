@@ -14,6 +14,7 @@ regresses. The deck shows the rollout as it happens.
 
 - Design: [docs/flight-deck-spec.md](docs/flight-deck-spec.md)
 - Running the demo: [docs/demo-runbook.md](docs/demo-runbook.md)
+- SE enablement kit (agenda, talk track, value drivers, facilitator runbook): [docs/enablement/](docs/enablement/README.md)
 - What starts the release: [docs/factory-release-trigger-report.md](docs/factory-release-trigger-report.md)
 - Flag conventions for this codebase: [CLAUDE.md](CLAUDE.md)
 
