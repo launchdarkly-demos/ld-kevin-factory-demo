@@ -66,13 +66,17 @@ echo "  force origin/main from $(git rev-parse --short origin/main) to $BASELINE
 # baseline, so a change cherry-picked onto develop stops counting as stray.
 # Commits authored by the GitHub App (Vega) and the two stored demo PRs are
 # expected; anything else is a human commit that belongs on develop.
-STRAY="$(git cherry "$BASE_SHA" origin/main | awk '/^\+/ {print $2}' | while read -r sha; do
-  author="$(git log -1 --format='%an' "$sha")"
-  subject="$(git log -1 --format='%s' "$sha")"
-  case "$author" in *Vega*) continue ;; esac
-  case "$subject" in "Add an express boarding lane"*|"Offer paid upgrades"*|"Merge pull request"*) continue ;; esac
-  echo "$(git rev-parse --short "$sha") $subject"
-done)"
+stray_commits() {
+  local sha author subject
+  git cherry "$BASE_SHA" origin/main | awk '/^\+/ {print $2}' | while read -r sha; do
+    author="$(git log -1 --format='%an' "$sha")"
+    subject="$(git log -1 --format='%s' "$sha")"
+    case "$author" in *Vega*) continue ;; esac
+    case "$subject" in "Add an express boarding lane"*|"Offer paid upgrades"*|"Merge pull request"*) continue ;; esac
+    echo "$(git rev-parse --short "$sha") $subject"
+  done
+}
+STRAY="$(stray_commits || true)"
 if [ -n "$STRAY" ]; then
   echo "  WARNING: commits on origin/main that are not in $BASELINE_TAG and do not look like demo PRs:"
   echo "$STRAY" | sed 's/^/    /'
