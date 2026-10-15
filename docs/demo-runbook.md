@@ -43,7 +43,9 @@ The reset refuses to run if `main` holds commits it does not recognise.
 3. Reply `@launchdarkly approve` on the PR. About two minutes later: "Plan
    applied", a commit from Vega wrapping the lane behind the flag, flag created
    off in LaunchDarkly.
-4. Merge the PR. Pull `main` and restart the deck (the "deploy").
+4. Merge the PR, then `scripts/deploy.sh`: it pulls `main` and hard-restarts
+   the deck on the merged code (the "deploy"). Skipping this is the most
+   common way to stall: the release engine never sees the flag evaluating.
 5. **Turn the flag on** in LaunchDarkly, Production, **and set the default
    rule to serve Control in the same save**. The app creates the flag with
    Treatment as the on-variation, so flipping the switch alone ships the
@@ -62,7 +64,7 @@ The reset refuses to run if `main` holds commits it does not recognise.
 
 1. `scripts/open-pr.sh 2`. The classifier flags this one unaided and warns
    that the boarding-time guard may roll it back.
-2. `@launchdarkly approve`, wait for "Plan applied", merge, pull, restart.
+2. `@launchdarkly approve`, wait for "Plan applied", merge, `scripts/deploy.sh`.
 3. Turn the flag on, default rule Control.
 4. Watch: release starts within a minute, 10% then 25%. Plus and Elite
    passengers pause at the door with a purple ring; the new-path boarding time
@@ -78,6 +80,10 @@ The reset refuses to run if `main` holds commits it does not recognise.
   behind a boolean flag per CLAUDE.md`.
 - Release tab stuck at "Not ready": the flag is still off. Turn it on.
 - Deck shows "offline": `LD_SDK_KEY` missing from `.env`.
+- Altitude tape stays empty after merge: the deck is running old code. Run
+  `scripts/deploy.sh`.
+- Deck unresponsive or port in use: `scripts/deploy.sh --no-pull` kills and
+  restarts it.
 
 ## Pace
 
