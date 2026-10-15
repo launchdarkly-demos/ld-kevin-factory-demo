@@ -2,25 +2,47 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { boardingLane, gateToSeatMs, LANES } from "../sim/boarding.mjs";
+import { withFlags } from "../lib/flags.mjs";
 import { createPassenger } from "../sim/passenger.mjs";
 import { mulberry32 } from "../sim/world.mjs";
 
-test("carry-on-only passengers take the express lane", async () => {
-  const rng = mulberry32(1);
-  let express = 0;
-  let zone = 0;
-  for (let i = 1; i <= 200; i += 1) {
-    const p = createPassenger(i, rng);
-    const lane = await boardingLane(p);
-    if (p.bags === 0) {
-      assert.equal(lane, "express");
-      express += 1;
-    } else {
-      assert.equal(lane, "zone");
-      zone += 1;
+test("with enable-express-boarding on, carry-on-only passengers take the express lane", async () => {
+  await withFlags({ "enable-express-boarding": true }, async () => {
+    const rng = mulberry32(1);
+    let express = 0;
+    let zone = 0;
+    for (let i = 1; i <= 200; i += 1) {
+      const p = createPassenger(i, rng);
+      const lane = await boardingLane(p);
+      if (p.bags === 0) {
+        assert.equal(lane, "express");
+        express += 1;
+      } else {
+        assert.equal(lane, "zone");
+        zone += 1;
+      }
     }
-  }
-  assert.ok(express > 0 && zone > 0, "the sample should include both kinds of passenger");
+    assert.ok(express > 0 && zone > 0, "the sample should include both kinds of passenger");
+  });
+});
+
+test("with enable-express-boarding off, everyone uses zone boarding", async () => {
+  await withFlags({ "enable-express-boarding": false }, async () => {
+    const rng = mulberry32(1);
+    for (let i = 1; i <= 200; i += 1) {
+      const p = createPassenger(i, rng);
+      assert.equal(await boardingLane(p), "zone");
+    }
+  });
+});
+
+test("without the flag set, boarding falls back to zone boarding", async () => {
+  await withFlags({}, async () => {
+    const rng = mulberry32(1);
+    for (let i = 1; i <= 50; i += 1) {
+      assert.equal(await boardingLane(createPassenger(i, rng)), "zone");
+    }
+  });
 });
 
 test("the express lane is faster than zone boarding", () => {
