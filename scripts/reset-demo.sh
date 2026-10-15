@@ -67,11 +67,15 @@ echo "  force origin/main from $(git rev-parse --short origin/main) to $BASELINE
 # Commits authored by the GitHub App (Vega) and the two stored demo PRs are
 # expected; anything else is a human commit that belongs on develop.
 stray_commits() {
-  local sha author subject
+  local sha author email subject
   git cherry "$BASE_SHA" origin/main | awk '/^\+/ {print $2}' | while read -r sha; do
     author="$(git log -1 --format='%an' "$sha")"
+    email="$(git log -1 --format='%ae' "$sha")"
     subject="$(git log -1 --format='%s' "$sha")"
-    case "$author" in *Vega*) continue ;; esac
+    # The GitHub App has signed its commits as "Vega <vega@launchdarkly.com>"
+    # and as "LaunchDarkly <noreply@launchdarkly.com>".
+    case "$author" in *Vega*|LaunchDarkly) continue ;; esac
+    case "$email" in vega@launchdarkly.com|noreply@launchdarkly.com) continue ;; esac
     case "$subject" in "Add an express boarding lane"*|"Offer paid upgrades"*|"Merge pull request"*) continue ;; esac
     echo "$(git rev-parse --short "$sha") $subject"
   done
