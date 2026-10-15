@@ -1,4 +1,4 @@
-From c43166d010e5d5ac9ec6365a50e6f6f22a8add84 Mon Sep 17 00:00:00 2001
+From d95db797ff98353b2e780067bae6473f9f80c681 Mon Sep 17 00:00:00 2001
 From: Kevin Cochran <40193276+kevincloud@users.noreply.github.com>
 Date: Wed, 14 Oct 2026 10:09:52 -0400
 Subject: [PATCH] Offer paid upgrades to Plus and Elite members at the gate
@@ -19,10 +19,10 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
  5 files changed, 85 insertions(+), 5 deletions(-)
 
 diff --git a/public/deck.js b/public/deck.js
-index e56e6eb..a6c9ade 100644
+index d9b6daf..1895e05 100644
 --- a/public/deck.js
 +++ b/public/deck.js
-@@ -316,6 +316,14 @@
+@@ -321,6 +321,14 @@
          ctx.arc(px, s.y, r + 2.5, 0, Math.PI * 2);
          ctx.stroke();
        }
@@ -37,7 +37,7 @@ index e56e6eb..a6c9ade 100644
        ctx.globalAlpha = 1;
        if (s.path === "treatment" && !s.missed && (s.stage === "toGate" || s.stage === "toSecurity")) {
          ctx.strokeStyle = "rgba(245,185,66,0.35)";
-@@ -338,12 +346,13 @@
+@@ -343,12 +351,13 @@
        [PALETTE.treat, "new path (a flag is on)"],
        [PALETTE.stop, "missed boarding"],
        ["ring", "express lane (carry-on only)"],
@@ -54,10 +54,10 @@ index e56e6eb..a6c9ade 100644
          ctx.beginPath();
          ctx.arc(x, y, 6, 0, Math.PI * 2);
 diff --git a/server.mjs b/server.mjs
-index d6ae06b..a28b724 100644
+index d037298..0297489 100644
 --- a/server.mjs
 +++ b/server.mjs
-@@ -186,6 +186,10 @@ const server = http.createServer((req, res) => {
+@@ -217,6 +217,10 @@ const server = http.createServer((req, res) => {
    if (pathname === "/api/state") return sendJson(res, 200, state());
    // Per-lane boarding counts and average gate-to-seat time, for gate operations.
    if (pathname === "/api/lanes") return sendJson(res, 200, { since: "start", lanes: world.laneStats() });
@@ -104,7 +104,7 @@ index eb6e1ab..d2cb3b1 100644
 +  };
 +}
 diff --git a/sim/world.mjs b/sim/world.mjs
-index de4b884..0f1ffc3 100644
+index e3ad948..96240f0 100644
 --- a/sim/world.mjs
 +++ b/sim/world.mjs
 @@ -14,7 +14,7 @@
@@ -154,12 +154,12 @@ index de4b884..0f1ffc3 100644
      p.dwell = p.boardingMs / SIM_SPEED / 1000;
      p.stage = "boarding";
    }
-@@ -486,6 +494,7 @@ export class World {
+@@ -492,6 +500,7 @@ export class World {
          y: Math.round(p.y + p.depth),
          stage: p.stage,
          lane: p.lane,
 +        offer: p.offer ? { accepted: p.offer.accepted } : null,
-         path: this.pathOf(p),
+         path: this.shownPathOf(p),
          bags: p.bags,
          tier: p.tier,
 diff --git a/test/boarding.test.mjs b/test/boarding.test.mjs
