@@ -3,6 +3,21 @@
 Two pull requests, one guarded release that lands, one that rolls back.
 About 15 minutes live if PR 1 is merged before the audience arrives.
 
+## Branches
+
+`main` is disposable: `scripts/reset-demo.sh` rewrites it to the
+`demo-baseline` tag before every run. Make your own changes on `develop`, then
+move the tag so the next reset carries them:
+
+```bash
+git checkout develop && git pull
+# ...commit...
+git push origin develop
+git tag -f demo-baseline && git push -f origin refs/tags/demo-baseline:refs/tags/demo-baseline
+```
+
+The reset refuses to run if `main` holds commits it does not recognise.
+
 ## Before the session
 
 1. Reset everything: `scripts/reset-demo.sh --yes`. Closes open PRs, deletes

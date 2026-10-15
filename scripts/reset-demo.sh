@@ -62,8 +62,10 @@ echo "  force origin/main from $(git rev-parse --short origin/main) to $BASELINE
 # Anything on origin/main that the baseline does not contain would be lost.
 # Demo merges (the two PRs plus the GitHub App's gating commits) are expected;
 # anything else is a human commit that belongs on develop first.
-STRAY="$(git log --format='%h %s' "$BASE_SHA..origin/main" --no-merges \
-  | grep -vE ' Gate the | Add an express boarding lane| Offer paid upgrades' || true)"
+# git cherry marks with '+' the commits whose patch is not already in the
+# baseline, so a change cherry-picked onto develop stops counting as stray.
+STRAY="$(git cherry -v "$BASE_SHA" origin/main | grep '^+' | cut -c3- \
+  | grep -vE ' Gate the | Add an express boarding lane| Offer paid upgrades|^[0-9a-f]+ Merge pull request' || true)"
 if [ -n "$STRAY" ]; then
   echo "  WARNING: commits on origin/main that are not in $BASELINE_TAG and do not look like demo PRs:"
   echo "$STRAY" | sed 's/^/    /'
