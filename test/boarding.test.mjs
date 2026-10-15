@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import { boardingLane, gateToSeatMs, LANES } from "../sim/boarding.mjs";
 import { createPassenger } from "../sim/passenger.mjs";
 import { mulberry32 } from "../sim/world.mjs";
+import { withFlags } from "../lib/flags.mjs";
 
-test("carry-on-only passengers take the express lane", async () => {
+test("carry-on-only passengers take the express lane when enable-express-boarding is on", async () => {
+  await withFlags({ "enable-express-boarding": true }, async () => {
   const rng = mulberry32(1);
   let express = 0;
   let zone = 0;
@@ -21,6 +23,17 @@ test("carry-on-only passengers take the express lane", async () => {
     }
   }
   assert.ok(express > 0 && zone > 0, "the sample should include both kinds of passenger");
+  });
+});
+
+test("every passenger boards by zone when enable-express-boarding is off", async () => {
+  await withFlags({}, async () => {
+    const rng = mulberry32(1);
+    for (let i = 1; i <= 200; i += 1) {
+      const p = createPassenger(i, rng);
+      assert.equal(await boardingLane(p), "zone");
+    }
+  });
 });
 
 test("the express lane is faster than zone boarding", () => {
