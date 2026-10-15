@@ -15,8 +15,12 @@
 # .env (a LaunchDarkly API access token with flag delete permission on the
 # project).
 #
-#   scripts/reset-demo.sh          # show what would happen
-#   scripts/reset-demo.sh --yes    # do it
+#   scripts/reset-demo.sh                        # show what would happen
+#   scripts/reset-demo.sh --yes                  # do it
+#   scripts/reset-demo.sh --yes --discard-main   # even if main has stray commits
+#
+# main is disposable: the reset rewrites it. Keep your own changes on develop
+# and move the demo-baseline tag (see docs/demo-runbook.md).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -55,6 +59,19 @@ echo "== main"
 git fetch -q origin --tags
 BASE_SHA="$(git rev-parse "$BASELINE_TAG")"
 echo "  force origin/main from $(git rev-parse --short origin/main) to $BASELINE_TAG ($(git rev-parse --short "$BASE_SHA"))"
+# Anything on origin/main that the baseline does not contain would be lost.
+# Demo merges (the two PRs plus the GitHub App's gating commits) are expected;
+# anything else is a human commit that belongs on develop first.
+STRAY="$(git log --format='%h %s' "$BASE_SHA..origin/main" --no-merges \
+  | grep -vE ' Gate the | Add an express boarding lane| Offer paid upgrades' || true)"
+if [ -n "$STRAY" ]; then
+  echo "  WARNING: commits on origin/main that are not in $BASELINE_TAG and do not look like demo PRs:"
+  echo "$STRAY" | sed 's/^/    /'
+  if [ "$DO_IT" = "--yes" ] && [ "${2:-}" != "--discard-main" ]; then
+    echo "  Refusing to reset main. Cherry-pick them onto develop and move the tag, or re-run with --yes --discard-main." >&2
+    exit 1
+  fi
+fi
 
 echo "== LaunchDarkly flags in $LD_PROJECT_KEY"
 FLAGS="$(ld "https://app.launchdarkly.com/api/v2/flags/$LD_PROJECT_KEY?summary=true" | python3 -c 'import json,sys; print("\n".join(i["key"] for i in json.load(sys.stdin)["items"]))')"
