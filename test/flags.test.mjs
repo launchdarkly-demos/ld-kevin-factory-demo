@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { init, isEnabled, withFlags, flagsFor, onNewPath, snapshot, resetRegistry } from "../lib/flags.mjs";
+import { init, isEnabled, withFlags, flagsFor, onNewPath, onShownPath, snapshot, resetRegistry } from "../lib/flags.mjs";
 
 const ctx = (key) => ({ kind: "user", key });
 
@@ -31,4 +31,21 @@ test("withFlags answers from the override map, including async callers", async (
   });
   assert.equal(onNewPath("pax-3"), true);
   assert.equal(onNewPath("pax-4"), false);
+});
+
+test("a landed flag keeps its passengers on the shown path until another flag rolls", async () => {
+  resetRegistry();
+  await init({ offline: true });
+  // enable-a is on for everyone: landed. Instruments ignore it; the floor keeps it gold.
+  for (let i = 0; i < 20; i += 1) await isEnabled("enable-a", ctx(`pax-${i}`), true);
+  assert.equal(onNewPath("pax-1"), false);
+  assert.equal(onShownPath("pax-1"), true);
+  // enable-b starts rolling at 50%: it decides the colour now.
+  resetRegistry();
+  for (let i = 0; i < 20; i += 1) await isEnabled("enable-a", ctx(`pax-${i}`), true);
+  for (let i = 0; i < 20; i += 1) await isEnabled("enable-b", ctx(`pax-${i}`), i % 2 === 0);
+  assert.equal(onShownPath("pax-0"), true);
+  assert.equal(onShownPath("pax-1"), false);
+  assert.equal(onNewPath("pax-0"), true);
+  assert.equal(onNewPath("pax-1"), false);
 });

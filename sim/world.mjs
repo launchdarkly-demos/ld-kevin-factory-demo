@@ -18,7 +18,7 @@ import { boardingLane, gateToSeatMs } from "./boarding.mjs";
 import { buildGates, onFlightDelayed } from "./gates.mjs";
 import { createPassenger } from "./passenger.mjs";
 import { Outcomes } from "./metrics.mjs";
-import { onNewPath, track } from "../lib/flags.mjs";
+import { onNewPath, onShownPath, track } from "../lib/flags.mjs";
 
 export const SIM_SPEED = 20; // simulated seconds per real second
 
@@ -397,8 +397,14 @@ export class World {
     p.stage = "boarding";
   }
 
+  /** Path for the instruments: only flags still rolling out count. */
   pathOf(p) {
     return onNewPath(p.key) ? "treatment" : "baseline";
+  }
+
+  /** Path for the floor: landed flags keep their passengers gold until the next rollout. */
+  shownPathOf(p) {
+    return onShownPath(p.key) ? "treatment" : "baseline";
   }
 
   boarded(p) {
@@ -473,7 +479,7 @@ export class World {
         y: Math.round(p.y + p.depth),
         stage: p.stage,
         lane: p.lane,
-        path: this.pathOf(p),
+        path: this.shownPathOf(p),
         bags: p.bags,
         tier: p.tier,
         missed: p.missed,
