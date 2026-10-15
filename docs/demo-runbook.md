@@ -80,8 +80,9 @@ The reset refuses to run if `main` holds commits it does not recognise.
   behind a boolean flag per CLAUDE.md`.
 - Release tab stuck at "Not ready": the flag is still off. Turn it on.
 - Deck shows "offline": `LD_SDK_KEY` missing from `.env`.
-- Altitude tape stays empty after merge: the deck is running old code. Run
-  `scripts/deploy.sh`.
+- Altitude tape stays empty after merge, or an orange banner says the deck is
+  running old code: run `scripts/deploy.sh`. The deck checks itself against
+  `origin/main` every minute.
 - Deck unresponsive or port in use: `scripts/deploy.sh --no-pull` kills and
   restarts it.
 

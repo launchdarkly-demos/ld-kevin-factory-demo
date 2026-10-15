@@ -12,7 +12,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { exec, execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import * as flags from "./lib/flags.mjs";
@@ -110,6 +110,36 @@ setInterval(() => {
 }, TICK_MS).unref();
 
 // ---------------------------------------------------------------------------
+// Stale-code check. The deck only picks up merged code on a restart, and a
+// deck running pre-merge code never evaluates the new flag, which stalls the
+// whole demo silently. Compare the running commit with origin/main every
+// minute and shout when it is behind.
+// ---------------------------------------------------------------------------
+
+const code = { commit: CONFIG.commit, originMain: null, behind: null, checkedAt: null };
+function checkCode() {
+  const cmd = "git fetch -q origin main && git rev-parse origin/main && (git merge-base --is-ancestor origin/main HEAD && echo current || echo behind)";
+  exec(cmd, { cwd: HERE, timeout: 20000 }, (err, stdout) => {
+    code.checkedAt = Date.now();
+    if (err) {
+      code.behind = null; // could not tell (offline, no credentials); say nothing
+      return;
+    }
+    const [originMain, verdict] = stdout.trim().split("\n");
+    const wasBehind = code.behind;
+    code.originMain = originMain;
+    code.behind = verdict === "behind";
+    if (code.behind && wasBehind !== true) {
+      addLog({ kind: "error", text: `deck is running ${code.commit.slice(0, 7)} but main is at ${originMain.slice(0, 7)}: run scripts/deploy.sh` });
+    }
+  });
+}
+if (!process.env.FLIGHT_DECK_NO_CODE_CHECK) {
+  setTimeout(checkCode, 5000).unref();
+  setInterval(checkCode, 60_000).unref();
+}
+
+// ---------------------------------------------------------------------------
 // Autopilot status, derived from measured flag shares. Updated on a timer so
 // the flight log records steps and rollbacks even with no browser attached.
 // ---------------------------------------------------------------------------
@@ -131,6 +161,7 @@ function state() {
     now: Date.now(),
     mode: flagSnapshot.mode,
     sdkReady: flagSnapshot.ready,
+    code,
     projectKey: CONFIG.projectKey,
     world: world.snapshot(),
     flags: flagSnapshot.flags,
@@ -189,6 +220,8 @@ const server = http.createServer((req, res) => {
       ok: true,
       version: VERSION,
       commit: CONFIG.commit,
+      originMain: code.originMain,
+      codeBehindMain: code.behind,
       mode: CONFIG.offline ? "offline" : "live",
       sdkReady: flags.snapshot().ready,
       uptimeSec: Math.round(process.uptime()),

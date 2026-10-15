@@ -57,7 +57,12 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       server = await res.json();
       lastPollAt = performance.now();
-      el.banner.hidden = true;
+      if (server.code && server.code.behind) {
+        el.banner.hidden = false;
+        el.banner.textContent = `Deck is running old code (${server.code.commit.slice(0, 7)}); main is at ${server.code.originMain.slice(0, 7)}. Run scripts/deploy.sh.`;
+      } else {
+        el.banner.hidden = true;
+      }
       applyServer();
     } catch (err) {
       el.banner.hidden = false;
