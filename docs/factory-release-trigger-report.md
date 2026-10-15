@@ -74,6 +74,32 @@ flags and reset `main`. Four new observations:
    started by hand from the Release button. PR #2's identical configuration
    had started within a minute of flag-on.
 
+## Incident, 2026-10-15: app reacts but never posts a plan (PR #14)
+
+Same PR content as #5, #7, #8, #9, #11, #12, #13, all of which received a
+plan within about four minutes. On #14 the app acknowledged the PR and then
+produced nothing.
+
+| Time (UTC) | Event |
+|---|---|
+| 20:23:37 | PR #14 opened (branch `express-boarding`, 8 files, same patch as #13) |
+| 20:23:39 | Check run "LaunchDarkly / Account connection" completed, success (same as every PR) |
+| 20:23:42 | 👀 reaction |
+| 20:24:24 | 🚀 reaction. On every earlier PR this reaction arrived in the same second as the plan comment. No comment, review, or check followed. |
+| 20:35:56 | `@launchdarkly replan <ask>` posted. No response. |
+| 20:44:51 | `@launchdarkly help` posted. Answered in 4 seconds with the command list, which now includes `@launchdarkly plan` ("continue the current run, or start a fresh one"). |
+| 20:45:29 | `@launchdarkly plan` posted. No response by 21:06. |
+| 21:06 | No flag created in the project. PR left open as evidence. |
+
+So the comment path works (`help` answers instantly) and the analysis run
+does not: it signals completion (🚀) without output, and neither `replan` nor
+`plan` restarts it. The command list differs from earlier in the day (`plan`
+is new), so an app deployment likely landed between PR #13 at 17:51 and PR
+#14 at 20:23.
+
+Questions: what does 🚀 without a comment mean; is there a run log for the PR;
+is `plan`/`replan` expected to recover a run in this state?
+
 ## Questions for the Factory team
 
 1. Is "flag turned on in the environment" the intended deploy signal? If so,

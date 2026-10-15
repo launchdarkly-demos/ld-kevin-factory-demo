@@ -33,6 +33,7 @@ not getting caught out in front of a room.
 | Symptom | Cause | Fix | Time |
 |---|---|---|---|
 | App never reacts to the PR (no 👀 in 2 minutes) | Repo not mapped, or app install changed | Settings > Release autopilot: check the repo row shows auto-flagging and auto-releasing on | 1 min |
+| App reacts (👀 then 🚀) but never posts a plan | App-side run failure; seen once after an app deployment | Reply `@launchdarkly plan`. If no answer in 2 minutes, `@launchdarkly help` to confirm the app is alive, then stop and report it; do not open more PRs. Lead with the pre-merged act 1 and the recording | 3 min |
 | "LaunchDarkly suggests no changes" | Classifier found nothing to protect | Reply `@launchdarkly refine gate this behind a boolean flag per CLAUDE.md`; plan arrives in ~90 s. Say "judgment, not a regex" | 2 min |
 | App asks a question instead of planning | Its policy lookup failed | Reply `@launchdarkly` and name the policy and environment; it replans | 2 min |
 | Tape stays empty after merge; orange banner on the deck | Deck is running pre-merge code | `scripts/deploy.sh` | 10 s |
