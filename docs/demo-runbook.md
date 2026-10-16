@@ -43,9 +43,12 @@ The reset refuses to run if `main` holds commits it does not recognise.
 3. Reply `@launchdarkly approve` on the PR. About two minutes later: "Plan
    applied", a commit from Vega wrapping the lane behind the flag, flag created
    off in LaunchDarkly.
-4. Merge the PR, then `scripts/deploy.sh`: it pulls `main` and hard-restarts
-   the deck on the merged code (the "deploy"). Skipping this is the most
-   common way to stall: the release engine never sees the flag evaluating.
+4. Merge the PR. Within about 30 seconds the deck notices `main` moved, pulls,
+   and restarts itself; the flight log shows "main moved to …: deploying" and
+   then "restarting on the new code". That is the deploy. If you do not want
+   to wait, `scripts/deploy.sh` does the same thing now. The deck only
+   self-deploys from a clean `main` checkout; otherwise it shows the orange
+   banner and leaves it to you.
 5. **Turn the flag on** in LaunchDarkly, Production, **and set the default
    rule to serve Control in the same save**. The app creates the flag with
    Treatment as the on-variation, so flipping the switch alone ships the
@@ -64,7 +67,8 @@ The reset refuses to run if `main` holds commits it does not recognise.
 
 1. `scripts/open-pr.sh 2`. The classifier flags this one unaided and warns
    that the boarding-time guard may roll it back.
-2. `@launchdarkly approve`, wait for "Plan applied", merge, `scripts/deploy.sh`.
+2. `@launchdarkly approve`, wait for "Plan applied", merge, wait for the
+   self-deploy (or `scripts/deploy.sh`).
 3. Turn the flag on, default rule Control.
 4. Watch: release starts within a minute, 10% then 25%. Plus and Elite
    passengers pause at the door with a purple ring; the new-path boarding time
@@ -80,9 +84,9 @@ The reset refuses to run if `main` holds commits it does not recognise.
   behind a boolean flag per CLAUDE.md`.
 - Release tab stuck at "Not ready": the flag is still off. Turn it on.
 - Deck shows "offline": `LD_SDK_KEY` missing from `.env`.
-- Altitude tape stays empty after merge, or an orange banner says the deck is
-  running old code: run `scripts/deploy.sh`. The deck checks itself against
-  `origin/main` every minute.
+- Altitude tape stays empty after merge: wait 30 seconds for the self-deploy,
+  or run `scripts/deploy.sh`. An orange banner that stays up means the deck
+  cannot self-deploy (not on `main`, or local changes); the banner says which.
 - Deck unresponsive or port in use: `scripts/deploy.sh --no-pull` kills and
   restarts it.
 

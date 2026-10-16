@@ -77,12 +77,14 @@ file, change the behaviour."
 
 ### Block 1d. Merge, deploy, hand off (2 minutes)
 
-**Say.** "Merge. Deploy. The flag is off, so nothing changed for a passenger
-yet. The handoff is one switch: the engineer turns the flag on, still serving
-the baseline. That tells autopilot the code is live."
+**Say.** "Merge. The deck deploys itself when it sees main move; watch the
+flight log. The flag is off, so nothing changed for a passenger yet. The
+handoff is one switch: the engineer turns the flag on, still serving the
+baseline. That tells autopilot the code is live."
 
-**Do.** Merge. `scripts/deploy.sh`. In LaunchDarkly, flag on, default rule to
-Control, save. If the release hasn't started within a minute, click Release
+**Do.** Merge. Wait for "restarting on the new code" in the flight log (about
+30 seconds; `scripts/deploy.sh` if impatient). In LaunchDarkly, flag on,
+default rule to Control, save. If the release hasn't started within a minute, click Release
 on the targeting page and Save; the form is pre-filled from the policy.
 
 **They see.** Within a minute the flag's Release tab reads "Release phase 1 of
@@ -126,8 +128,8 @@ diff."
 
 ### Block 2c. Approve, merge, deploy, flag on (3 minutes)
 
-**Do.** `@launchdarkly approve`, wait for "Plan applied", merge,
-`scripts/deploy.sh`, flag on with Control. Release button if needed.
+**Do.** `@launchdarkly approve`, wait for "Plan applied", merge, wait for the
+self-deploy, flag on with Control. Release button if needed.
 
 **They see.** Everyone on the floor drops from gold to blue: the new rolling
 flag now decides the colour. Then the first gold passengers again, this time

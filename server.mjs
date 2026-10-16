@@ -12,7 +12,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { exec, execSync } from "node:child_process";
+import { exec, execSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import * as flags from "./lib/flags.mjs";
@@ -110,13 +110,23 @@ setInterval(() => {
 }, TICK_MS).unref();
 
 // ---------------------------------------------------------------------------
-// Stale-code check. The deck only picks up merged code on a restart, and a
-// deck running pre-merge code never evaluates the new flag, which stalls the
-// whole demo silently. Compare the running commit with origin/main every
-// minute and shout when it is behind.
+// Stale-code check and self-deploy. The deck only picks up merged code on a
+// restart, and a deck running pre-merge code never evaluates the new flag,
+// which stalls the whole demo silently. Every 30 seconds, compare the running
+// commit with origin/main. When behind, and running from a clean `main`
+// checkout, pull and restart (the "deploy" happens because the merge did).
+// Otherwise keep the banner up and leave the operator to run scripts/deploy.sh.
+// Set FLIGHT_DECK_AUTO_DEPLOY=0 to only warn.
 // ---------------------------------------------------------------------------
 
-const code = { commit: CONFIG.commit, originMain: null, behind: null, checkedAt: null };
+const AUTO_DEPLOY = process.env.FLIGHT_DECK_AUTO_DEPLOY !== "0";
+const code = { commit: CONFIG.commit, originMain: null, behind: null, checkedAt: null, autoDeploy: AUTO_DEPLOY, deploying: false };
+let blockedReason = null;
+
+function git(cmd) {
+  return execSync(`git ${cmd}`, { cwd: HERE, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+}
+
 function checkCode() {
   const cmd = "git fetch -q origin main && git rev-parse origin/main && (git merge-base --is-ancestor origin/main HEAD && echo current || echo behind)";
   exec(cmd, { cwd: HERE, timeout: 20000 }, (err, stdout) => {
@@ -129,14 +139,66 @@ function checkCode() {
     const wasBehind = code.behind;
     code.originMain = originMain;
     code.behind = verdict === "behind";
-    if (code.behind && wasBehind !== true) {
+    if (!code.behind) {
+      blockedReason = null;
+      return;
+    }
+    if (AUTO_DEPLOY) autoDeploy(originMain);
+    else if (wasBehind !== true) {
       addLog({ kind: "error", text: `deck is running ${code.commit.slice(0, 7)} but main is at ${originMain.slice(0, 7)}: run scripts/deploy.sh` });
     }
   });
 }
+
+function autoDeploy(target) {
+  if (code.deploying) return;
+  let reason = null;
+  try {
+    const branch = git("branch --show-current");
+    if (branch !== "main") reason = `checked out ${branch || "a detached commit"}, not main`;
+    else if (git("status --porcelain --untracked-files=no")) reason = "working tree has local changes";
+  } catch (err) {
+    reason = `git failed: ${err && err.message ? err.message : err}`;
+  }
+  if (reason) {
+    if (reason !== blockedReason) {
+      blockedReason = reason;
+      addLog({ kind: "error", text: `main is at ${target.slice(0, 7)} but not deploying: ${reason}. Run scripts/deploy.sh` });
+    }
+    return;
+  }
+  code.deploying = true;
+  addLog({ kind: "deck", text: `main moved to ${target.slice(0, 7)}: deploying` });
+  exec("git pull -q --ff-only origin main", { cwd: HERE, timeout: 60000 }, (err) => {
+    if (err) {
+      code.deploying = false;
+      addLog({ kind: "error", text: `pull failed: ${err.message.split("\n")[0]}. Run scripts/deploy.sh` });
+      return;
+    }
+    restartSelf();
+  });
+}
+
+/** Hand the port to a fresh copy of this process on the new code, then exit. */
+function restartSelf() {
+  addLog({ kind: "deck", text: "restarting on the new code" });
+  const relaunch = () => {
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], { cwd: HERE, detached: true, stdio: "inherit", env: process.env });
+    child.unref();
+    process.exit(0);
+  };
+  try {
+    server.closeAllConnections();
+  } catch {
+    /* older Node */
+  }
+  server.close(() => flags.close().finally(relaunch));
+  setTimeout(relaunch, 3000).unref(); // do not hang on a stubborn connection
+}
+
 if (!process.env.FLIGHT_DECK_NO_CODE_CHECK) {
   setTimeout(checkCode, 5000).unref();
-  setInterval(checkCode, 60_000).unref();
+  setInterval(checkCode, 30_000).unref();
 }
 
 // ---------------------------------------------------------------------------

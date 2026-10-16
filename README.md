@@ -35,7 +35,7 @@ fallback and the floor runs on baseline behaviour.
 | Script | What it does |
 |---|---|
 | `scripts/reset-demo.sh [--yes]` | Close PRs, delete feature branches, force `main` to the `demo-baseline` tag, delete the project's flags, restart the deck. Dry run without `--yes`. |
-| `scripts/deploy.sh [--no-pull]` | Pull `main` and hard-restart the deck on it. Run right after each merge. |
+| `scripts/deploy.sh [--no-pull]` | Pull `main` and hard-restart the deck on it. The deck does this itself within 30 s of a merge when running from a clean `main`; the script is for impatience and for recovery. |
 | `scripts/open-pr.sh 1\|2` | Open demo PR 1 (express boarding lane) or PR 2 (gate upgrade offers) from the stored patches in `demo/`. |
 | `scripts/capture.sh [sec] [dir]` | Screenshot the deck every few seconds with headless Chrome while a run plays out. |
 | `node scripts/make-gif.mjs` | Stitch the frames into `docs/media/flight-deck.png` (animated PNG; also a `.gif` if ffmpeg is installed). |

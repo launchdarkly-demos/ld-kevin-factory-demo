@@ -39,7 +39,7 @@ not getting caught out in front of a room.
 | App reacts (👀 then 🚀) but never posts a plan | Account-wide auto-flagging is switched off (Settings > Release autopilot, "Account-wide" row). The switch is shared across the whole account; someone else can turn it off | Turn account-wide auto-flagging back on, then `@launchdarkly plan` on the PR. Check this switch in the hour-before list | 1 min |
 | "LaunchDarkly suggests no changes" | Classifier found nothing to protect | Reply `@launchdarkly refine gate this behind a boolean flag per CLAUDE.md`; plan arrives in ~90 s. Say "judgment, not a regex" | 2 min |
 | App asks a question instead of planning | Its policy lookup failed | Reply `@launchdarkly` and name the policy and environment; it replans | 2 min |
-| Tape stays empty after merge; orange banner on the deck | Deck is running pre-merge code | `scripts/deploy.sh` | 10 s |
+| Tape stays empty 30 s after merge | Deck has not self-deployed yet, or cannot (banner says why: not on `main`, or local changes) | Wait for "restarting on the new code" in the flight log, or `scripts/deploy.sh` | 30 s |
 | Flag on, tape jumps to 100% immediately | Default rule left on Treatment | Set default rule to Control and save. Release will not start on its own after this; use the Release button | 1 min |
 | Flag on with Control, nothing after a minute | Automatic start did not fire (intermittent) | Targeting page: Release, Review and save, Save. Pre-filled from the policy | 30 s |
 | "Plan applied" mentions a duplicate flag in another project | App created a stray flag in the account's `default` project | Ignore during the demo; archive it afterwards | 0 |
