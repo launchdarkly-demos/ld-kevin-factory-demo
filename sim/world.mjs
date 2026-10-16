@@ -106,6 +106,7 @@ export class World {
     this.flightSeq = 100 + Math.floor(this.rng() * 400);
     this.outcomes = new Outcomes(60_000);
     this.counters = { spawned: 0, boarded: 0, missed: 0, departures: 0, delays: 0, gateChanges: 0 };
+    this.lanes = {}; // lane key -> { boarded, msTotal }, since start
     // Stagger the first flights so the gates are not all in lockstep.
     for (const gate of this.gates) this.scheduleFlight(gate, between(this.rng, [0, TUNING.boardingWindow]));
   }
@@ -411,7 +412,19 @@ export class World {
     this.outcomes.record({ path: this.pathOf(p), missed: false, boardingMs: p.boardingMs });
     track("boarding-time-ms", p.context, p.boardingMs);
     this.counters.boarded += 1;
+    const lane = (this.lanes[p.lane] ||= { boarded: 0, msTotal: 0 });
+    lane.boarded += 1;
+    lane.msTotal += p.boardingMs;
     p.stage = "gone";
+  }
+
+  /** Boardings and average gate-to-seat time per lane since the simulation started. */
+  laneStats() {
+    const out = {};
+    for (const [key, s] of Object.entries(this.lanes)) {
+      out[key] = { boarded: s.boarded, avgBoardingMs: s.boarded ? Math.round(s.msTotal / s.boarded) : null };
+    }
+    return out;
   }
 
   miss(p) {
@@ -487,6 +500,7 @@ export class World {
         gate: p.flight ? p.flight.gate.id : null,
       })),
       outcomes: this.outcomes.summary(),
+      lanes: this.laneStats(),
     };
   }
 }
