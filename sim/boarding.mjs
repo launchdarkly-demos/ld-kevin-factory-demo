@@ -58,14 +58,15 @@ export const UPGRADE_OFFER = Object.freeze({
 
 /**
  * Decide whether the gate agent offers a paid upgrade to a passenger who has
- * reached the door. Plus and Elite members get the offer; everyone else
- * boards straight away.
+ * reached the door. With enable-gate-upgrade-offers on, Plus and Elite members
+ * get the offer; with it off, or for anyone else, they board straight away.
  *
  * @param {import("./passenger.mjs").Passenger} passenger
  * @param {() => number} rng
- * @returns {{ tier: string, accepted: boolean, durationSimMs: number } | null | Promise<...>}
+ * @returns {Promise<{ tier: string, accepted: boolean, durationSimMs: number } | null>}
  */
-export function upgradeOffer(passenger, rng) {
+export async function upgradeOffer(passenger, rng) {
+  if (!(await isEnabled("enable-gate-upgrade-offers", passenger.context, false))) return null; // baseline
   if (!UPGRADE_OFFER.eligibleTiers.includes(passenger.tier)) return null;
   const [lo, hi] = UPGRADE_OFFER.durationSimMs;
   return {
