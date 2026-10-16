@@ -47,3 +47,34 @@ export function gateToSeatMs(lane, rng) {
   const [lo, hi] = (LANES[lane] || LANES.zone).gateToSeatSimMs;
   return Math.round(lo + rng() * (hi - lo));
 }
+
+export const UPGRADE_OFFER = Object.freeze({
+  eligibleTiers: ["plus", "elite"],
+  acceptOdds: { plus: 0.25, elite: 0.4 },
+  // The offer conversation, payment, and reseating at the door, in simulated
+  // milliseconds. It happens before the passenger heads to their seat.
+  durationSimMs: [150_000, 240_000],
+});
+
+/**
+ * Decide whether the gate agent offers a paid upgrade to a passenger who has
+ * reached the door.
+ *
+ * Behind enable-gate-upgrade-offers (off: nobody is offered an upgrade and
+ * every passenger boards straight to their seat). Plus and Elite members get
+ * the offer; everyone else boards straight away.
+ *
+ * @param {import("./passenger.mjs").Passenger} passenger
+ * @param {() => number} rng
+ * @returns {{ tier: string, accepted: boolean, durationSimMs: number } | null | Promise<...>}
+ */
+export async function upgradeOffer(passenger, rng) {
+  if (!(await isEnabled("enable-gate-upgrade-offers", passenger.context, false))) return null; // baseline
+  if (!UPGRADE_OFFER.eligibleTiers.includes(passenger.tier)) return null;
+  const [lo, hi] = UPGRADE_OFFER.durationSimMs;
+  return {
+    tier: passenger.tier,
+    accepted: rng() < UPGRADE_OFFER.acceptOdds[passenger.tier],
+    durationSimMs: Math.round(lo + rng() * (hi - lo)),
+  };
+}

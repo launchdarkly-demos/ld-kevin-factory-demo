@@ -279,6 +279,10 @@ const server = http.createServer((req, res) => {
   if (pathname === "/api/state") return sendJson(res, 200, state());
   // Per-lane boarding counts and average gate-to-seat time, for gate operations.
   if (pathname === "/api/lanes") return sendJson(res, 200, { since: "start", lanes: world.laneStats() });
+  if (pathname === "/api/upgrades") {
+    const { offers, upgrades } = world.counters;
+    return sendJson(res, 200, { offers, accepted: upgrades, acceptanceRate: offers ? upgrades / offers : null });
+  }
   if (pathname === "/api/health") {
     return sendJson(res, 200, {
       ok: true,
