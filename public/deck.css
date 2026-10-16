@@ -171,3 +171,6 @@ html, body {
 #log li.autopilot { color: var(--text); font-weight: 600; }
 .tape .flag.landed .fill { background: var(--ok); }
 .tape .flag.landed .pct { color: var(--ok); }
+.lanes { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+.lanes .lane .label { color: var(--muted); margin-right: 4px; }
+.lanes .empty { font-size: 12px; }
