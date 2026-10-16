@@ -17,6 +17,9 @@ not getting caught out in front of a room.
 
 ## One hour before
 
+- [ ] Settings > Release autopilot: the **Account-wide** auto-flagging and
+      auto-releasing switches are on, and the repo row is mapped. The switch is
+      shared by everyone on the account; it has been turned off under us once.
 - [ ] Browser tabs, in order: the deck (full screen on the shared display),
       the repo's pull requests page, the flag list in LaunchDarkly, the
       release policy.
@@ -33,7 +36,7 @@ not getting caught out in front of a room.
 | Symptom | Cause | Fix | Time |
 |---|---|---|---|
 | App never reacts to the PR (no 👀 in 2 minutes) | Repo not mapped, or app install changed | Settings > Release autopilot: check the repo row shows auto-flagging and auto-releasing on | 1 min |
-| App reacts (👀 then 🚀) but never posts a plan | App-side run failure; seen once after an app deployment | Reply `@launchdarkly plan`. If no answer in 2 minutes, `@launchdarkly help` to confirm the app is alive, then stop and report it; do not open more PRs. Lead with the pre-merged act 1 and the recording | 3 min |
+| App reacts (👀 then 🚀) but never posts a plan | Account-wide auto-flagging is switched off (Settings > Release autopilot, "Account-wide" row). The switch is shared across the whole account; someone else can turn it off | Turn account-wide auto-flagging back on, then `@launchdarkly plan` on the PR. Check this switch in the hour-before list | 1 min |
 | "LaunchDarkly suggests no changes" | Classifier found nothing to protect | Reply `@launchdarkly refine gate this behind a boolean flag per CLAUDE.md`; plan arrives in ~90 s. Say "judgment, not a regex" | 2 min |
 | App asks a question instead of planning | Its policy lookup failed | Reply `@launchdarkly` and name the policy and environment; it replans | 2 min |
 | Tape stays empty after merge; orange banner on the deck | Deck is running pre-merge code | `scripts/deploy.sh` | 10 s |

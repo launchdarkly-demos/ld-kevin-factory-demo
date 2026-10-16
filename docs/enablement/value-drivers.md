@@ -110,6 +110,11 @@ A rolling flag decides the colour. Act 1's flag has landed, so its passengers
 show gold only until another flag starts rolling. The tape still shows act
 1's flag at 100%, green, "landed".
 
+**The app reacted to my PR but never posted a plan.**
+Account-wide auto-flagging is off. It's one switch for the whole account at
+Settings > Release autopilot, and someone else can flip it. Turn it on, then
+`@launchdarkly plan` on the PR.
+
 **Can I show a different app?**
 The reference polyglot app (Go, Python, TypeScript) exists in the demos org.
 Flight Deck is faster to narrate because the rollout is visible. Use the

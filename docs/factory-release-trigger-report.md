@@ -91,14 +91,20 @@ produced nothing.
 | 20:45:29 | `@launchdarkly plan` posted. No response by 21:06. |
 | 21:06 | No flag created in the project. PR left open as evidence. |
 
-So the comment path works (`help` answers instantly) and the analysis run
-does not: it signals completion (🚀) without output, and neither `replan` nor
-`plan` restarts it. The command list differs from earlier in the day (`plan`
-is new), so an app deployment likely landed between PR #13 at 17:51 and PR
-#14 at 20:23.
+**Root cause (found 2026-10-16 via the audit log, `GET /api/v2/auditlog?spec=acct`):**
+account-level auto-flagging was switched off at 19:34:59 UTC (3:34 pm ET) by
+another member of the account, 49 minutes before PR #14 opened, and switched
+back on at 23:30:04 UTC. With the account gate off the app still acknowledges
+the PR (👀, 🚀, the Account connection check) but produces no plan, and
+`replan`/`plan` do nothing. Not an app fault.
 
-Questions: what does 🚀 without a comment mean; is there a run log for the PR;
-is `plan`/`replan` expected to recover a run in this state?
+Two product observations from this:
+
+1. The app gives no signal on the PR that auto-flagging is disabled. A one-line
+   comment ("auto-flagging is off for this account") would have saved an hour.
+2. The account-wide switch is shared by every project and every repo mapped on
+   the account. Anyone demoing from this account should check Settings >
+   Release autopilot first.
 
 ## Questions for the Factory team
 
