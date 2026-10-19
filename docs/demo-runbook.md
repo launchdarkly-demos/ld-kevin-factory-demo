@@ -50,9 +50,10 @@ The reset refuses to run if `main` holds commits it does not recognise.
    self-deploys from a clean `main` checkout; otherwise it shows the orange
    banner and leaves it to you.
 5. **Turn the flag on** in LaunchDarkly, Production, **and set the default
-   rule to serve Control in the same save**. The app creates the flag with
-   Treatment as the on-variation, so flipping the switch alone ships the
-   feature to everyone and the engine has nothing to release. Done right, the
+   rule to serve the baseline variation in the same save** (the app has named
+   it `Control` on some runs and `Off` on others). The app creates the flag
+   with the new-behaviour variation as the on-default, so flipping the switch
+   alone ships the feature to everyone and the engine has nothing to release. Done right, the
    Release tab shows "Release phase 1 of 1, In progress" within a minute and
    the deck's lamp reads **CLIMB**.
    If it still reads "Not ready: waiting on flag evaluations" after a minute,
