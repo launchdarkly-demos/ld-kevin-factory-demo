@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://demodepot.launchdarklydemos.com/schemas/demo.schema.json
+schemaVersion: 1
+slug: flight-deck
+name: Flight Deck
+summary: Release AutoPilot live. The GitHub App flags a pull request, then a guarded release rolls out passenger by passenger or rolls back.
+owners:
+  - kcochran@launchdarkly.com
+tags: [release-automation, guarded-rollouts, feature-management]
+media:
+  cover: ./media/cover.png
+links:
+  talkTrack: https://github.com/launchdarkly-demos/ld-kevin-factory-demo/blob/main/docs/enablement/talk-track.md
+  docs: https://github.com/launchdarkly-demos/ld-kevin-factory-demo/blob/main/docs/demo-runbook.md
+parameters:
+  - name: SIM_RATE
+    label: Simulated passengers per second
+    type: enum
+    options: ["4", "8", "16"]
+    default: "8"
+    help: 8 gives a guarded release enough samples to decide within one-minute steps.
+  - name: SIM_SEED
+    label: Simulation seed
+    type: string
+    default: "7"
+    help: Any integer. Same seed, same passengers.
+runtime:
+  ingress:
+    container: web
+    port: 7777
+    healthCheck: { path: /api/health }
+  containers:
+    - name: web
+      build: { context: . }
+      cpu: 512
+      memory: 1024
+      env:
+        NODE_ENV: production
+        # The deck can't pull main and restart itself inside a Fargate task; merged changes ship as a new depot version.
+        FLIGHT_DECK_AUTO_DEPLOY: "0"
+        FLIGHT_DECK_NO_CODE_CHECK: "1"
+capabilities: []
+launchdarkly:
+  # Bound to the one project the LaunchDarkly GitHub App is connected to. The depot never creates
+  # or deletes it: one presenter checks the demo out at a time and checks it back in at teardown.
+  mode: checkout
+  project: { key: kevinc-release-autopilot-demo, environment: production }
+access:
+  default: sso
+  allowPublic: true
+lifecycle:
+  pausable: true
+verify:
+  http:
+    - path: /api/health
+      expectStatus: 200
+      expectBodyContains: '"ok":true'
+    - path: /
+      expectStatus: 200
+      expectBodyContains: Flight Deck
+    - path: /api/state
+      expectStatus: 200
