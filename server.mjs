@@ -128,7 +128,10 @@ function git(cmd) {
 }
 
 function checkCode() {
-  const cmd = "git fetch -q origin main && git rev-parse origin/main && (git merge-base --is-ancestor origin/main HEAD && echo current || echo behind)";
+  // ls-remote reads the remote without updating any local ref, so this check
+  // never races a git command the operator is running in the same checkout.
+  // An unknown remote commit cannot be an ancestor of HEAD, so it reads as behind.
+  const cmd = "sha=$(git ls-remote --quiet origin refs/heads/main | cut -f1) && echo \"$sha\" && (git merge-base --is-ancestor \"$sha\" HEAD 2>/dev/null && echo current || echo behind)";
   exec(cmd, { cwd: HERE, timeout: 20000 }, (err, stdout) => {
     code.checkedAt = Date.now();
     if (err) {
@@ -136,6 +139,10 @@ function checkCode() {
       return;
     }
     const [originMain, verdict] = stdout.trim().split("\n");
+    if (!originMain) {
+      code.behind = null;
+      return;
+    }
     const wasBehind = code.behind;
     code.originMain = originMain;
     code.behind = verdict === "behind";
