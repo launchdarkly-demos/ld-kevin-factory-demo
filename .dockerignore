@@ -1,0 +1,12 @@
+.git
+node_modules
+.env*
+!.env.example
+.tmp-snapshots
+docs/media/frames
+.github
+.claude
+.dd
+demo.yaml
+DEMO.md
+media

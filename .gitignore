@@ -4,3 +4,8 @@ node_modules/
 npm-debug.log*
 .DS_Store
 docs/media/frames/
+
+# Demo Depot
+.env.*
+!.env.example
+.dd/
