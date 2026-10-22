@@ -48,9 +48,10 @@ runtime:
         # when the instance stops. The LaunchDarkly GitHub App is installed org-wide, so the copy is covered.
         FLIGHT_DECK_TEMPLATE_REPO: launchdarkly-demos/ld-kevin-factory-demo
       secrets:
-        # Owner-set at /owners/flight-deck. LD_API_KEY is an account-level LaunchDarkly token: the
-        # Release AutoPilot repo mapping is an account setting, which the injected project-writer token
-        # cannot write. FLIGHT_DECK_OPS_TOKEN gates the Operate menu because instances may be public.
+        # Owner-set at /demos/flight-deck/manage. The instance uses the depot's project-writer token
+        # (LD_API_TOKEN) for everything it can; LD_API_KEY, an account-level token, is the fallback for
+        # the Release AutoPilot repo mapping, which is an account setting (the launch log says whether
+        # it was needed). FLIGHT_DECK_OPS_TOKEN gates the Operate menu because instances may be public.
         - LD_API_KEY
         - FLIGHT_DECK_OPS_TOKEN
 capabilities: []

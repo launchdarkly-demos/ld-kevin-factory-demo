@@ -6,9 +6,15 @@ import { launchConfig, launchId, repoName, releasePolicy, METRICS } from "../lib
 test("a launch is provisioned only when the depot id, both tokens and the project are present", () => {
   const off = launchConfig({});
   assert.equal(off.enabled, false);
-  assert.deepEqual(off.missing, ["DD_INSTANCE_ID", "GITHUB_TOKEN", "LD_API_KEY", "LD_PROJECT_KEY"]);
+  assert.deepEqual(off.missing, ["DD_INSTANCE_ID", "GITHUB_TOKEN", "LD_API_TOKEN or LD_API_KEY", "LD_PROJECT_KEY"]);
   const on = launchConfig({ DD_INSTANCE_ID: "01JD3K7X", GITHUB_TOKEN: "t", LD_API_KEY: "k", LD_PROJECT_KEY: "dd-abc" });
   assert.equal(on.enabled, true);
+  assert.equal(on.ldApiKey, "k");
+  // The depot's project-writer token is preferred; the account key stays as the fallback.
+  const both = launchConfig({ DD_INSTANCE_ID: "x", GITHUB_TOKEN: "t", LD_API_TOKEN: "proj", LD_API_KEY: "acct", LD_PROJECT_KEY: "p" });
+  assert.equal(both.ldApiKey, "proj");
+  assert.equal(both.ldAccountKey, "acct");
+  assert.equal(launchConfig({ DD_INSTANCE_ID: "x", GITHUB_TOKEN: "t", LD_API_TOKEN: "proj", LD_PROJECT_KEY: "p" }).enabled, true);
   assert.equal(on.repo, "launchdarkly-demos/ld-flight-deck-01jd3k7x");
   assert.equal(on.envKey, "production");
 });
