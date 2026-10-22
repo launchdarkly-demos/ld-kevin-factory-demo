@@ -72,7 +72,7 @@ html, body {
   right: 0;
   top: calc(100% + 6px);
   z-index: 10;
-  width: 380px;
+  width: 440px;
   max-height: 70vh;
   overflow: auto;
   padding: 8px;
