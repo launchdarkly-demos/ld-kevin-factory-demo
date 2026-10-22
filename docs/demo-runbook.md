@@ -14,6 +14,7 @@ git checkout develop && git pull
 # ...commit...
 git push origin develop
 git tag -f demo-baseline && git push -f origin refs/tags/demo-baseline:refs/tags/demo-baseline
+scripts/update-demo-branches.sh   # rebuild demo/pr1 and demo/pr2, which launch copies cherry-pick
 ```
 
 The reset refuses to run if `main` holds commits it does not recognise.

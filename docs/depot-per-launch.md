@@ -88,35 +88,39 @@ with the shape in `scripts/provision-launch.sh`; metrics use the public
   The mapping record shows no `updatedByMemberId`, so a token write is a
   supported path. The DELETE is still untested until the first teardown.
 
-## Open blocker: the App does not resolve new mappings (2026-10-22)
+## The App and new mappings (2026-10-22)
 
-Every pull request on a freshly mapped repository gets the same answer from
-the GitHub App: "I couldn't resolve your LaunchDarkly project, so I didn't
-start analysis on this PR", and `@launchdarkly plan` returns "Something went
-wrong while processing your `plan` command". Ruled out, one variable at a
-time, all against project `flight-deck-test03` (created by API with the
-metrics and policy in place):
+**Resolved in practice.** On the first real Depot launch of v0.2.2 the App
+planned PR 1, the plan was approved, Vega committed, the PR merged, and the
+release ran: the App resolves a project the depot created minutes earlier.
 
-| Variable | Result |
-|---|---|
-| Mapping written by API token vs. by the settings UI (member session) | both fail |
-| Repository created from the template (one root commit) vs. ordinary repo with full history | both fail |
-| Code-references repository entry for the new repo | no change |
-| Closing and reopening the PR (fresh pull-request event) | no change |
-| Waiting 50 minutes and retrying `plan` | no change |
+The earlier scare: during testing, every PR on a repo mapped to a project
+*I* had created through the API (`flight-deck-test03`, with metrics and
+policy) got "I couldn't resolve your LaunchDarkly project", regardless of
+how the mapping was made, whether the repo was a template copy, code
+references, reopening the PR, or waiting 50 minutes. The difference to the
+depot's projects is not understood; it may be how those test projects were
+created or something about them the App checks. It did not affect real
+launches, so it is left as a note for the Factory team rather than a blocker.
 
-Not yet tested: a project created in the UI (`flight-deck-ui05` exists with
-metrics and policy for that purpose), and whether the account's connected
-member needs a project-level grant. The original repo and project, mapped
-on 2026-10-13 through the UI, planned PRs the same day, so the App can
-resolve *some* new mappings; the difference has not been found. Until it
-is, a per-launch instance stalls at its first beat. v0.2.0 is published to
-the depot but the catalog still serves v0.1.1 (checkout mode).
+## PR 2 in a copy: cherry-pick, not patch (2026-10-22)
 
-Question for the Factory team: how does the App learn the repo-to-project
-mapping, and what must exist on the project or the member for a mapping
-created minutes earlier by `PATCH /api/v2/account/factory-settings/repos/{id}`
-to resolve?
+The first launch stalled at PR 2 with "sha1 information is lacking or
+useless (public/deck.js)". The stored patch's 3-way merge needs the blob it
+was written against, which lives only in the original repo's history: main
+after PR 1 *and the App's own commit*, which differs per run. A template copy
+never has it.
+
+Fix: the template keeps branches `demo/pr1` (baseline + PR 1) and `demo/pr2`
+(`demo/pr1` + PR 2), rebuilt from the patches by
+`scripts/update-demo-branches.sh`. A copy fetches the template's branches and
+**cherry-picks** the commit, which has a real merge base (its parent), so it
+survives whatever the App committed to main in between. The patch path stays
+as the fallback where no template is configured. `test/ops.test.mjs` models
+the exact failure: a history-less copy, PR 1 merged, an App-style commit on
+`main` touching a file PR 2 edits, then PR 2.
+
+Keep in sync: after moving `demo-baseline`, run `scripts/update-demo-branches.sh`.
 
 ## Cleanup of the test launches
 

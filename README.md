@@ -49,6 +49,7 @@ The scripts remain for laptops and recovery:
 | `scripts/deploy.sh [--no-pull]` | Pull `main` and hard-restart the deck on it. The deck does this itself within 30 s of a merge when running from a clean `main`; the script is for impatience and for recovery. |
 | `scripts/open-pr.sh 1\|2` | Open demo PR 1 (express boarding lane) or PR 2 (gate upgrade offers) from the stored patches in `demo/`. |
 | `scripts/capture.sh [sec] [dir]` | Screenshot the deck every few seconds with headless Chrome while a run plays out. |
+| `scripts/update-demo-branches.sh` | Rebuild the `demo/pr1` and `demo/pr2` branches from the patches on the `demo-baseline` tag and push them. Launch copies cherry-pick these; run it after moving the tag. |
 | `scripts/launch.mjs provision\|teardown` | What a Demo Depot instance runs at start and stop: create or find its repo copy, add metrics and policy to its project, map the repo; later unmap and delete the repo. Driven by `docker-entrypoint.sh`. |
 | `scripts/provision-launch.sh <id> [--teardown]` | Create (or delete) a disposable launch: repo from the template, LaunchDarkly project with metrics and policy, Release AutoPilot mapping. See `docs/depot-per-launch.md`. |
 | `node scripts/make-gif.mjs` | Stitch the frames into `docs/media/flight-deck.png` (animated PNG; also a `.gif` if ffmpeg is installed). |
