@@ -60,23 +60,24 @@ with the shape in `scripts/provision-launch.sh`; metrics use the public
 - Both demo patches apply onto a history-less copy (the ops test uses a bare
   repo with the same shape).
 
+- 2026-10-22: `scripts/provision-launch.sh 02` ran end to end with the
+  account API token: repo `ld-flight-deck-02` (id 1429833722), project
+  `flight-deck-02`, metrics, policy, and the mapping PATCH all succeeded.
+  The mapping record shows no `updatedByMemberId`, so a token write is a
+  supported path. The DELETE is still untested until the first teardown.
+
 ## Not yet verified
 
-- That an API access token, rather than a browser session, may issue the
-  mapping PATCH and DELETE. The settings page uses the session cookie.
-  Run `scripts/provision-launch.sh 02` once to find out; if the PATCH returns
-  401 or 403 the mapping step needs a member session or a role grant.
+- The mapping DELETE (first `--teardown` run will show).
 - That the App plans a PR on a template copy. Open PR 1 on the copy
   (`GITHUB_REPO=launchdarkly-demos/ld-flight-deck-launch-01` with the
   Operate menu or `scripts/open-pr.sh 1`) and wait for the plan comment.
 - How Demo Depot injects secrets and whether it offers launch and teardown
   hooks to run the provisioning script. The `demo.yaml` schema is behind SSO.
 
-## Cleanup of the test launch
+## Cleanup of the test launches
 
 ```bash
-scripts/provision-launch.sh launch-01 --teardown
+scripts/provision-launch.sh launch-01 --teardown   # repo 1429205827, project flight-deck-launch-01
+scripts/provision-launch.sh 02 --teardown          # repo 1429833722, project flight-deck-02
 ```
-
-It unmaps repo 1429205827, deletes `launchdarkly-demos/ld-flight-deck-launch-01`,
-and deletes project `flight-deck-launch-01`.
