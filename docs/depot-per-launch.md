@@ -86,14 +86,35 @@ with the shape in `scripts/provision-launch.sh`; metrics use the public
   The mapping record shows no `updatedByMemberId`, so a token write is a
   supported path. The DELETE is still untested until the first teardown.
 
-## Not yet verified
+## Open blocker: the App does not resolve new mappings (2026-10-22)
 
-- The mapping DELETE (first `--teardown` run will show).
-- That the App plans a PR on a template copy. Open PR 1 on the copy
-  (`GITHUB_REPO=launchdarkly-demos/ld-flight-deck-launch-01` with the
-  Operate menu or `scripts/open-pr.sh 1`) and wait for the plan comment.
-- How Demo Depot injects secrets and whether it offers launch and teardown
-  hooks to run the provisioning script. The `demo.yaml` schema is behind SSO.
+Every pull request on a freshly mapped repository gets the same answer from
+the GitHub App: "I couldn't resolve your LaunchDarkly project, so I didn't
+start analysis on this PR", and `@launchdarkly plan` returns "Something went
+wrong while processing your `plan` command". Ruled out, one variable at a
+time, all against project `flight-deck-test03` (created by API with the
+metrics and policy in place):
+
+| Variable | Result |
+|---|---|
+| Mapping written by API token vs. by the settings UI (member session) | both fail |
+| Repository created from the template (one root commit) vs. ordinary repo with full history | both fail |
+| Code-references repository entry for the new repo | no change |
+| Closing and reopening the PR (fresh pull-request event) | no change |
+| Waiting 50 minutes and retrying `plan` | no change |
+
+Not yet tested: a project created in the UI (`flight-deck-ui05` exists with
+metrics and policy for that purpose), and whether the account's connected
+member needs a project-level grant. The original repo and project, mapped
+on 2026-10-13 through the UI, planned PRs the same day, so the App can
+resolve *some* new mappings; the difference has not been found. Until it
+is, a per-launch instance stalls at its first beat. v0.2.0 is published to
+the depot but the catalog still serves v0.1.1 (checkout mode).
+
+Question for the Factory team: how does the App learn the repo-to-project
+mapping, and what must exist on the project or the member for a mapping
+created minutes earlier by `PATCH /api/v2/account/factory-settings/repos/{id}`
+to resolve?
 
 ## Cleanup of the test launches
 
