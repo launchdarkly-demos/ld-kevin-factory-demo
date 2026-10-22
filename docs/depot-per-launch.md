@@ -5,26 +5,46 @@ the LaunchDarkly GitHub App is mapped to, so only one presenter can run it at
 a time. This note records what it takes to give every launch its own
 disposable repo and project instead, and what has been verified so far.
 
-## The model
+## The model (implemented 2026-10-22)
 
-At launch:
+The depot has no launch or teardown hooks, but in `launchdarkly.mode: seed`
+it already creates a LaunchDarkly project per instance with the SE's token,
+injects `LD_SDK_KEY`, `LD_PROJECT_KEY`, `LD_ENV_KEY` and (with
+`apiToken: project-writer`) `LD_API_TOKEN`, and deletes the project at
+teardown. Every container also gets `DD_INSTANCE_ID`. So the container does
+the GitHub side itself:
 
-1. Create a repo from the template `launchdarkly-demos/ld-kevin-factory-demo`
-   (template flag set 2026-10-21). The copy has one root commit holding the
-   baseline tree: no `develop`, no `demo-baseline` tag, no history. The App is
-   installed org-wide, so the copy is covered the moment it exists.
-2. Create a LaunchDarkly project, the two guardrail metrics and the guarded
-   release policy.
-3. Map the repo to the project in Release AutoPilot settings.
-4. Start the container with that repo, project and the project's production
-   SDK key. The entrypoint clones `main` and runs it; the Operate menu drives
-   the demo; reset returns `main` to the root commit (see `resolveBaseline`
-   in `lib/ops.mjs`).
+1. **Start** (`docker-entrypoint.sh` → `scripts/launch.mjs provision`): when
+   `DD_INSTANCE_ID`, `GITHUB_TOKEN` (launch parameter, `secret: true`) and
+   `LD_API_KEY` (owner demo secret, account level) are present, create
+   `ld-flight-deck-<instance id>` from the template in the same org (or find
+   it after a restart), add the two metrics and the release policy to the
+   injected project (409 = already there), and PATCH the mapping. It prints
+   `GITHUB_REPO` and `FLIGHT_DECK_LAUNCH_TEARDOWN=1` for the entrypoint,
+   which then clones `main` and runs it with self-deploy on. If any input is
+   missing (a verification run, a laptop) the step is skipped and the baked
+   copy runs, so health checks still pass.
+2. **Demo**: the Operate menu drives it. Reset returns `main` to the copy's
+   root commit (`resolveBaseline` in `lib/ops.mjs`).
+3. **Stop**: the entrypoint stays PID 1 and supervises the server. On
+   SIGTERM it stops the server and runs `scripts/launch.mjs teardown` from
+   the image (unmap, delete the repo) within the 30 seconds ECS allows,
+   whatever version of the code the clone was running. The depot deletes the
+   project. `lifecycle.pausable` is `false` because a pause is a stop.
+4. **Self-deploy in a container**: the server cannot re-exec itself detached
+   (PID 1 leaving ends the task), so under the supervisor it exits with code
+   75 after pulling and the entrypoint starts it again. Copies made before
+   this code reached the template's `main` fall back to the old behaviour,
+   which ends the task and lets ECS restart it: slower, still correct.
 
-At teardown: unmap, delete the repo, delete the project. Nothing is shared.
+`scripts/provision-launch.sh <id> [--teardown]` remains for laptops and for
+cleaning up a launch whose container never stopped cleanly.
 
-`scripts/provision-launch.sh <id>` does steps 1 to 3 and prints the container
-environment; `--teardown` undoes them.
+Why `LD_API_KEY` is a demo secret rather than the injected token: the
+Release AutoPilot mapping lives in account factory settings, outside any
+project, and the injected `LD_API_TOKEN` is a project writer. Flag writes
+from the Operate menu fall back to `LD_API_TOKEN` when `LD_API_KEY` is
+absent.
 
 ## The mapping API
 

@@ -8,19 +8,21 @@ Release AutoPilot end to end. An airport operations board shows 2,000 simulated 
 - Guarded releases with guardrail metrics and automatic rollback
 - Release policies
 
-## One presenter at a time
+## Your own copy, every launch
 
-This demo is bound to one LaunchDarkly project (`kevinc-release-autopilot-demo`), the one the GitHub App is connected to, and to one GitHub repository. Demo Depot checks it out to you when you launch and checks it back in when you tear down. If someone else has it, the demo page lets you ask them to hand it over; they get a Slack message with *Hand it over* / *Not yet*.
+Every launch gets its own LaunchDarkly project (the depot creates it with your token) and its own GitHub repository: at start the instance copies the demo repo from the `launchdarkly-demos/ld-kevin-factory-demo` template as `ld-flight-deck-<instance id>`, adds the two guardrail metrics and the guarded release policy to the project, and maps the repo to the project in Release AutoPilot. Tearing the instance down deletes the repo and the mapping; the depot deletes the project. Nothing is shared, so any number of SEs can run it at once.
 
-Everything you do during the demo is a button in the deck's **Operate** menu (top right): Reset, open PR 1 or 2, Approve, Refine, Merge, Turn on serving baseline, Redeploy. No terminal needed. The menu shows once the instance has `GITHUB_TOKEN`, `LD_API_KEY` and `FLIGHT_DECK_OPS_TOKEN` (the depot's secrets); it asks for the ops token once per browser session. Before a session, open the menu and press **Reset**: closes PRs, forces `main` back to the baseline, deletes the project's flags, restarts the deck.
+For that you type a **GitHub token** on the launch form (`repo` and `delete_repo` scope, SSO-authorised for `launchdarkly-demos`, from a GitHub user connected to LaunchDarkly, since the App only obeys commands from people it knows). Leave it blank and the deck still runs, but without the pull-request beats.
+
+Everything you do during the demo is a button in the deck's **Operate** menu (top right): open PR 1 or 2, Approve, Refine, Merge, Turn on serving baseline, Redeploy, Reset. No terminal. The menu asks for the ops token once per browser session (the owner sets it as a demo secret).
 
 ## The story (about 15 minutes)
 
-1. **Open the deck.** Everything is red: no flags, baseline behaviour. Talk about the policy and the metrics it watches.
+1. **Open the deck.** Everyone is blue: no flags, baseline behaviour. Talk about the policy and the metrics it watches (Operate shows the repo and project this launch owns).
 2. **Open PR 1** (Operate > PR 1 express lane). Within a minute the App reacts; about four minutes later it posts a plan: one boolean flag plus a release configuration quoting the project's policy.
 3. **Approve** (Operate > Approve posts `@launchdarkly approve`). About two minutes later: "Plan applied", a commit from Vega wrapping the lane behind the flag, flag created off in LaunchDarkly.
-4. **Merge and deploy.** Operate > Merge. The container runs a live clone of `main`, so within 30 seconds the flight log reads "main moved to …: deploying" and the deck restarts on the merged code. That is the deploy. Operate > Redeploy forces it.
-5. **Turn the flag on serving the baseline** (Operate > Turn on, serve baseline; or by hand in Production with the default rule set to Control in the same save). Within a minute the Release tab shows phase 1 in progress and the deck's lamp reads CLIMB. Squares turn green as the rollout climbs.
+4. **Merge and deploy.** Operate > Merge. The container runs a live clone of your repo's `main`, so within 30 seconds the flight log reads "main moved to …: deploying" and the deck restarts on the merged code. That is the deploy. Operate > Redeploy forces it.
+5. **Turn the flag on serving the baseline** (Operate > Turn on, serve baseline; or by hand in Production with the default rule set to Control in the same save). Within a minute the Release tab shows phase 1 in progress and the deck's lamp reads CLIMB. Passengers turn gold as the rollout climbs.
 6. **PR 2** (gate upgrade offers) regresses a guardrail. Watch autopilot roll it back.
 
 ## Created during the demo
@@ -32,21 +34,29 @@ Nothing is seeded. Flags are created live and must not be pre-created.
 | whatever the GitHub App proposes on PR 1 (an express-boarding boolean) | LaunchDarkly GitHub App, on `@launchdarkly approve` | beat 3 |
 | whatever the GitHub App proposes on PR 2 (an upgrade-offers boolean) | LaunchDarkly GitHub App | beat 6 |
 | release configurations for both flags | Release AutoPilot, from the project's release policy | beats 3 and 6 |
+| metrics `boarding-time-ms`, `missed-boarding`; policy `release-auto-pilot-demo` | the instance itself at start (`scripts/launch.mjs`), because the seed format has no metrics or policies | before beat 1 |
+| repo `ld-flight-deck-<id>` and its Release AutoPilot mapping | the instance itself at start; removed at teardown | before beat 1 |
 
 ## Launch parameters
 
 | Parameter | What it does |
 | --- | --- |
+| `GITHUB_TOKEN` (secret) | Creates and later deletes your repo copy, posts the `@launchdarkly` commands as you. Blank: no PR beats. |
 | `SIM_RATE` | Simulated passengers per real second. 8 gives a guarded release enough samples to decide within one-minute steps. |
 | `SIM_SEED` | Random seed for the simulation. Same seed, same passengers. |
 
 ## Setup the SE does
 
-- Read access to project `kevinc-release-autopilot-demo` with the LaunchDarkly API token saved in the depot (the launch reads the Production SDK key with it).
-- Write access to the GitHub repo for the pull-request beats, and `gh` authenticated for the reset and open-pr scripts.
+- A GitHub token with `repo` and `delete_repo` scope, SSO-authorised for `launchdarkly-demos`, pasted on the launch form. Your GitHub account must be connected to LaunchDarkly (Settings > Release autopilot does that the first time you claim a plan).
+- The ops token from the demo owner, typed once when you first open the Operate menu.
+
+## Setup the owner does (once)
+
+- Demo secrets at `/owners/flight-deck`: `LD_API_KEY` (an account-level LaunchDarkly token; the Release AutoPilot mapping is an account setting) and `FLIGHT_DECK_OPS_TOKEN`.
+- Keep `ld-kevin-factory-demo` a template repo with `main` at the flag-free baseline.
 
 ## Known limitations
 
-- The deck's self-deploy (pull `main`, restart) is off in the depot (`FLIGHT_DECK_AUTO_DEPLOY=0`); see beat 4.
-- One instance at a time, because the GitHub repository and the LaunchDarkly project are shared.
-- Pausing keeps the instance but the simulation restarts from the seed on resume.
+- Not pausable: a stop deletes this launch's repo, so the timers terminate instead of pausing.
+- The GitHub App has not yet been observed planning a PR on a template copy; it should, because the copy is an ordinary repo in an org where the App is installed.
+- Orphaned `ld-flight-deck-*` repos (an instance that never stopped cleanly) are harmless; delete them by hand or with `scripts/provision-launch.sh <id> --teardown`.

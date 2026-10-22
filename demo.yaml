@@ -12,6 +12,14 @@ links:
   talkTrack: https://github.com/launchdarkly-demos/ld-kevin-factory-demo/blob/main/docs/enablement/talk-track.md
   docs: https://github.com/launchdarkly-demos/ld-kevin-factory-demo/blob/main/docs/demo-runbook.md
 parameters:
+  - name: GITHUB_TOKEN
+    label: Your GitHub token
+    type: string
+    secret: true
+    required: false
+    help: >-
+      repo + delete_repo scope, SSO-authorised for launchdarkly-demos, from a GitHub user connected to
+      LaunchDarkly. Creates your disposable repo copy; blank runs the deck without the PR beats.
   - name: SIM_RATE
     label: Simulated passengers per second
     type: enum
@@ -35,28 +43,31 @@ runtime:
       memory: 1024
       env:
         NODE_ENV: production
-        # Repo the LaunchDarkly GitHub App is connected to. With GITHUB_TOKEN also set, the entrypoint
-        # clones main and runs it (merges reach the floor within 30 s) and the Operate menu appears in
-        # the page header: open the demo PRs, approve, merge, turn the flag on, reset. Without the
-        # tokens the image's baked copy runs and the menu stays hidden.
-        GITHUB_REPO: launchdarkly-demos/ld-kevin-factory-demo
-        LD_PROJECT_KEY: kevinc-release-autopilot-demo
-        LD_ENV_KEY: production
-        # Secrets the Operate menu needs (set them in the depot's secret store, not here):
-        #   GITHUB_TOKEN           repo scope on GITHUB_REPO, owned by a GitHub user connected to LaunchDarkly
-        #   LD_API_KEY             writer on the project
-        #   FLIGHT_DECK_OPS_TOKEN  shared secret the presenter types once; required because allowPublic is true
+        # Template every launch copies. The copy is named ld-flight-deck-<DD_INSTANCE_ID> in the same org,
+        # mapped to the instance's project at start (docker-entrypoint.sh, scripts/launch.mjs), and deleted
+        # when the instance stops. The LaunchDarkly GitHub App is installed org-wide, so the copy is covered.
+        FLIGHT_DECK_TEMPLATE_REPO: launchdarkly-demos/ld-kevin-factory-demo
+      secrets:
+        # Owner-set at /owners/flight-deck. LD_API_KEY is an account-level LaunchDarkly token: the
+        # Release AutoPilot repo mapping is an account setting, which the injected project-writer token
+        # cannot write. FLIGHT_DECK_OPS_TOKEN gates the Operate menu because instances may be public.
+        - LD_API_KEY
+        - FLIGHT_DECK_OPS_TOKEN
 capabilities: []
 launchdarkly:
-  # Bound to the one project the LaunchDarkly GitHub App is connected to. The depot never creates
-  # or deletes it: one presenter checks the demo out at a time and checks it back in at teardown.
-  mode: checkout
-  project: { key: kevinc-release-autopilot-demo, environment: production }
+  # One project per instance, created by the depot with the SE's token and deleted at teardown.
+  # The seed is empty on purpose: the GitHub App creates the flags live. The container adds the
+  # guardrail metrics and the release policy (the seed format has neither) and maps its repo.
+  mode: seed
+  seed: ./ld/seed.json
+  apiToken: project-writer
 access:
   default: sso
   allowPublic: true
 lifecycle:
-  pausable: true
+  # A pause stops the container, and the stop tears down this launch's repository and mapping.
+  # Resuming would start over in a new repo mid-demo, so the timers terminate instead.
+  pausable: false
 verify:
   http:
     - path: /api/health

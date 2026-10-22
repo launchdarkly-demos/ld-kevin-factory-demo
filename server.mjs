@@ -199,10 +199,17 @@ function autoDeploy(target) {
   });
 }
 
-/** Hand the port to a fresh copy of this process on the new code, then exit. */
+/**
+ * Hand the port to a fresh copy of this process on the new code, then exit.
+ * Under a supervisor (docker-entrypoint.sh sets FLIGHT_DECK_SUPERVISED) exit
+ * with 75 instead and let it start the next copy: a detached child would not
+ * keep a container alive once PID 1 is gone.
+ */
+const RESTART_EXIT_CODE = 75;
 function restartSelf() {
   addLog({ kind: "deck", text: "restarting on the new code" });
   const relaunch = () => {
+    if (process.env.FLIGHT_DECK_SUPERVISED === "1") process.exit(RESTART_EXIT_CODE);
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], { cwd: HERE, detached: true, stdio: "inherit", env: process.env });
     child.unref();
     process.exit(0);
@@ -443,10 +450,18 @@ server.listen(CONFIG.port, () => {
   console.log(`[flight-deck] v${VERSION} listening on :${CONFIG.port} (${CONFIG.offline ? "offline" : "live"})`);
 });
 
+let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
-    await flags.close();
+    if (stopping) return;
+    stopping = true;
+    try {
+      server.closeAllConnections();
+    } catch {
+      /* older Node */
+    }
     server.close();
+    await flags.close();
     process.exit(0);
   });
 }

@@ -1,0 +1,20 @@
+{
+  "seedVersion": 1,
+  "environments": [
+    {
+      "key": "production",
+      "name": "Production",
+      "color": "417505"
+    }
+  ],
+  "flags": [],
+  "segments": [],
+  "aiConfigs": [],
+  "createdDuringDemo": {
+    "by": "github-app",
+    "flags": [
+      "*"
+    ],
+    "note": "Release AutoPilot creates one boolean flag per pull request (express boarding on PR 1, upgrade offers on PR 2). The container creates the metrics boarding-time-ms and missed-boarding and the policy release-auto-pilot-demo at start (scripts/launch.mjs)."
+  }
+}

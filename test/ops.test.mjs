@@ -12,7 +12,8 @@ const git = (args, cwd) => execFileSync("git", args, { cwd, stdio: ["ignore", "p
 test("ops are disabled until every token and key is present, and say which are missing", () => {
   const off = opsConfig({});
   assert.equal(off.enabled, false);
-  assert.deepEqual(off.missing, ["GITHUB_TOKEN", "GITHUB_REPO", "LD_API_KEY", "LD_PROJECT_KEY"]);
+  assert.deepEqual(off.missing, ["GITHUB_TOKEN", "GITHUB_REPO", "LD_API_KEY (or LD_API_TOKEN)", "LD_PROJECT_KEY"]);
+  assert.equal(opsConfig({ GITHUB_TOKEN: "t", GITHUB_REPO: "o/r", LD_API_TOKEN: "depot", LD_PROJECT_KEY: "p" }).ldApiKey, "depot");
   const on = opsConfig({ GITHUB_TOKEN: "t", GITHUB_REPO: "o/r", LD_API_KEY: "k", LD_PROJECT_KEY: "p" });
   assert.equal(on.enabled, true);
   assert.equal(on.envKey, "production");
@@ -33,9 +34,15 @@ test("each demo patch applies onto the baseline and lands on its own branch (loc
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
   const bare = path.join(tmp, "remote.git");
   git(["init", "--quiet", "--bare", bare]);
-  // The baseline is this checkout's HEAD, pushed as main (no flags on main there).
-  git(["push", "--quiet", bare, "HEAD:refs/heads/main"], process.cwd());
-  const cfg = { ...opsConfig({ GITHUB_TOKEN: "t", GITHUB_REPO: "o/r", LD_API_KEY: "k", LD_PROJECT_KEY: "p" }), gitRemote: bare };
+  // The remote looks like a repo created from the template: one root commit holding this
+  // checkout's tree and no history. The template itself (this repo) supplies the history.
+  const squashed = git(["commit-tree", "HEAD^{tree}", "-m", "Initial commit"], process.cwd());
+  git(["push", "--quiet", bare, `${squashed}:refs/heads/main`], process.cwd());
+  const cfg = {
+    ...opsConfig({ GITHUB_TOKEN: "t", GITHUB_REPO: "o/r", LD_API_KEY: "k", LD_PROJECT_KEY: "p" }),
+    gitRemote: bare,
+    gitTemplateRemote: process.cwd(),
+  };
 
   const pr1 = pushDemoBranch(cfg, 1);
   assert.equal(pr1.branch, DEMO_PRS[1].branch);
