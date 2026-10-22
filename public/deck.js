@@ -227,12 +227,14 @@
       for (const p of status.prs) {
         const ready = /ready to merge/.test(p.stage);
         const declined = /declined/.test(p.stage);
+        const retry = /retry plan/.test(p.stage);
         const proposed = /approve/.test(p.stage);
         parts.push(
           row(
             `<a href="${esc(p.url)}" target="_blank" rel="noopener">#${p.number} ${esc(p.title)}</a>`,
             esc(p.stage),
             (declined ? btn("Refine", "comment", { pr: p.number, body: "@launchdarkly refine" }, { cls: "primary" }) : "") +
+              (retry ? btn("Retry plan", "comment", { pr: p.number, body: "@launchdarkly plan" }, { cls: "primary" }) : "") +
               btn("Approve", "comment", { pr: p.number, body: "@launchdarkly approve" }, { cls: proposed ? "primary" : "" }) +
               btn("Merge", "merge", { pr: p.number }, { cls: ready ? "primary" : "", confirm: ready ? "" : `Merge #${p.number} before the plan is applied?` }),
           ),
