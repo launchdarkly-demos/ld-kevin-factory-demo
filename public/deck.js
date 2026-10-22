@@ -43,6 +43,8 @@
     log: document.getElementById("log"),
     gaugeBoarding: document.getElementById("gauge-boarding"),
     gaugeMissed: document.getElementById("gauge-missed"),
+    operate: document.getElementById("operate"),
+    operateBody: document.getElementById("operate-body"),
   };
 
   let server = null;
@@ -59,7 +61,8 @@
       lastPollAt = performance.now();
       if (server.code && server.code.behind) {
         el.banner.hidden = false;
-        el.banner.textContent = `Deck is running old code (${server.code.commit.slice(0, 7)}); main is at ${server.code.originMain.slice(0, 7)}. Run scripts/deploy.sh.`;
+        const hint = (server.ops && server.ops.deployHint) || "Run scripts/deploy.sh";
+        el.banner.textContent = `Deck is running old code (${server.code.commit.slice(0, 7)}); main is at ${server.code.originMain.slice(0, 7)}. ${hint}.`;
       } else {
         el.banner.hidden = true;
       }
@@ -103,7 +106,181 @@
     renderTape(server.flags);
     renderGauges(w.outcomes);
     renderLog(server.log);
+    operate.sync(server.ops);
   }
+
+  // -------------------------------------------------------------------------
+  // Operate menu. Everything the demo's helper scripts did, fired from the page
+  // through POST /api/ops/<action>. The server does the work and writes the
+  // outcome to the flight log, so this only has to show state and buttons.
+  // -------------------------------------------------------------------------
+
+  const operate = (() => {
+    const OPS_URL = (action) => new URL(`api/ops/${action}`, window.location.href).toString();
+    let status = null;
+    let error = null;
+    let busy = null;
+    let enabled = false;
+    let tokenRequired = false;
+    let refreshTimer = null;
+
+    function token() {
+      if (!tokenRequired) return "";
+      let t = sessionStorage.getItem("flight-deck-ops-token");
+      if (!t) {
+        t = window.prompt("Operate token (FLIGHT_DECK_OPS_TOKEN on the server)") || "";
+        if (t) sessionStorage.setItem("flight-deck-ops-token", t);
+      }
+      return t;
+    }
+
+    function headers(extra) {
+      const h = { ...(extra || {}) };
+      const t = token();
+      if (t) h["X-Ops-Token"] = t;
+      return h;
+    }
+
+    async function refresh() {
+      if (!enabled || !el.operate.open) return;
+      try {
+        const res = await fetch(OPS_URL("status"), { cache: "no-store", headers: headers() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (res.status === 401) sessionStorage.removeItem("flight-deck-ops-token");
+        status = data;
+        error = null;
+      } catch (err) {
+        error = err && err.message ? err.message : String(err);
+        if (/X-Ops-Token/.test(error)) sessionStorage.removeItem("flight-deck-ops-token");
+      }
+      render();
+    }
+
+    async function fire(action, body, confirmText) {
+      if (confirmText && !window.confirm(confirmText)) return;
+      busy = action;
+      inFlight = true;
+      render();
+      try {
+        const res = await fetch(OPS_URL(action), {
+          method: "POST",
+          headers: headers({ "Content-Type": "application/json" }),
+          body: JSON.stringify(body || {}),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        error = null;
+      } catch (err) {
+        error = err && err.message ? err.message : String(err);
+      } finally {
+        busy = null;
+        inFlight = false;
+        await refresh();
+      }
+    }
+
+    let inFlight = false;
+
+    /** Called on every poll: show the menu when the server has tokens, mirror a run started from another tab. */
+    function sync(ops) {
+      enabled = Boolean(ops && ops.enabled);
+      tokenRequired = Boolean(ops && ops.tokenRequired);
+      el.operate.hidden = !enabled;
+      if (inFlight || !ops) return;
+      if (ops.busy !== busy) {
+        busy = ops.busy || null;
+        render();
+      }
+    }
+
+    function row(what, sub, buttons) {
+      return `<div class="row"><span class="what">${what}${sub ? `<small>${sub}</small>` : ""}</span>${buttons}</div>`;
+    }
+
+    function btn(label, action, body, opts = {}) {
+      const data = esc(JSON.stringify({ action, body: body || {}, confirm: opts.confirm || "" }));
+      return `<button data-op='${data}' class="${opts.cls || ""}"${busy ? " disabled" : ""}>${esc(label)}</button>`;
+    }
+
+    function render() {
+      if (!enabled) return;
+      const parts = [];
+      if (error) parts.push(`<p class="note error">${esc(error)}</p>`);
+      if (busy) parts.push(`<p class="note">Running ${esc(busy)}…</p>`);
+      if (!status) {
+        parts.push('<p class="empty">Loading…</p>');
+        el.operateBody.innerHTML = parts.join("");
+        return;
+      }
+      const openBranches = new Set(status.prs.map((p) => p.branch));
+      parts.push("<h3>Pull requests</h3>");
+      parts.push(
+        row(
+          "Open a demo PR",
+          `${esc(status.repo)} · main`,
+          btn("PR 1 express lane", "open-pr", { which: 1 }, { cls: openBranches.has("express-boarding") ? "" : "primary" }) +
+            btn("PR 2 upgrade offers", "open-pr", { which: 2 }, { cls: openBranches.has("gate-upgrade-offers") ? "" : "primary" }),
+        ),
+      );
+      if (!status.prs.length) parts.push('<p class="empty">No open pull requests.</p>');
+      for (const p of status.prs) {
+        const ready = /ready to merge/.test(p.stage);
+        const declined = /declined/.test(p.stage);
+        const proposed = /approve/.test(p.stage);
+        parts.push(
+          row(
+            `<a href="${esc(p.url)}" target="_blank" rel="noopener">#${p.number} ${esc(p.title)}</a>`,
+            esc(p.stage),
+            (declined ? btn("Refine", "comment", { pr: p.number, body: "@launchdarkly refine" }, { cls: "primary" }) : "") +
+              btn("Approve", "comment", { pr: p.number, body: "@launchdarkly approve" }, { cls: proposed ? "primary" : "" }) +
+              btn("Merge", "merge", { pr: p.number }, { cls: ready ? "primary" : "", confirm: ready ? "" : `Merge #${p.number} before the plan is applied?` }),
+          ),
+        );
+      }
+      parts.push("<h3>Flags</h3>");
+      if (status.flagsError) parts.push(`<p class="note error">${esc(status.flagsError)}</p>`);
+      else if (!status.flags.length) parts.push(`<p class="empty">No flags in ${esc(status.project)} yet. The app creates one when a plan is approved.</p>`);
+      for (const f of status.flags) {
+        parts.push(
+          row(
+            esc(f.key),
+            f.on ? `on in ${esc(status.environment)}` : `off in ${esc(status.environment)}`,
+            f.on ? "" : btn("Turn on, serve baseline", "flag-on", { key: f.key }, { cls: "primary" }),
+          ),
+        );
+      }
+      parts.push("<h3>Deck</h3>");
+      parts.push(row("Redeploy", "fetch main and restart on it", btn("Redeploy", "redeploy", {}, { confirm: "Restart the deck on the current main?" })));
+      parts.push(
+        row(
+          "Reset the demo",
+          "close PRs, delete branches and flags, main back to baseline, restart",
+          btn("Reset", "reset", {}, { cls: "danger", confirm: `Reset ${status.repo} and delete every flag in ${status.project}?` }),
+        ),
+      );
+      el.operateBody.innerHTML = parts.join("");
+    }
+
+    el.operateBody.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button[data-op]");
+      if (!b || b.disabled) return;
+      const op = JSON.parse(b.dataset.op);
+      fire(op.action, op.body, op.confirm);
+    });
+    el.operate.addEventListener("toggle", () => {
+      clearInterval(refreshTimer);
+      if (el.operate.open) {
+        refresh();
+        refreshTimer = setInterval(refresh, 15000);
+      }
+    });
+    document.addEventListener("click", (ev) => {
+      if (el.operate.open && !el.operate.contains(ev.target)) el.operate.open = false;
+    });
+
+    return { sync };
+  })();
 
   function renderTape(flagList) {
     if (!flagList.length) {

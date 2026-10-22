@@ -32,6 +32,17 @@ fallback and the floor runs on baseline behaviour.
 
 ## Demo tooling
 
+The deck's header has an **Operate** menu that does everything the scripts
+below do, from the page: open demo PR 1 or 2, post `@launchdarkly approve`
+or `refine`, merge, turn the app's flag on serving the baseline, redeploy,
+reset. It appears when `GITHUB_TOKEN`, `GITHUB_REPO`, `LD_API_KEY` and
+`LD_PROJECT_KEY` are set (see `.env.example`); set `FLIGHT_DECK_OPS_TOKEN` to
+require a shared secret on a public URL. Every action writes its outcome to
+the flight log. This is how the demo is driven from Demo Depot, where there
+is no terminal.
+
+The scripts remain for laptops and recovery:
+
 | Script | What it does |
 |---|---|
 | `scripts/reset-demo.sh [--yes]` | Close PRs, delete feature branches, force `main` to the `demo-baseline` tag, delete the project's flags, restart the deck. Dry run without `--yes`. |

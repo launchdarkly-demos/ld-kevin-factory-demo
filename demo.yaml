@@ -35,9 +35,17 @@ runtime:
       memory: 1024
       env:
         NODE_ENV: production
-        # The deck can't pull main and restart itself inside a Fargate task; merged changes ship as a new depot version.
-        FLIGHT_DECK_AUTO_DEPLOY: "0"
-        FLIGHT_DECK_NO_CODE_CHECK: "1"
+        # Repo the LaunchDarkly GitHub App is connected to. With GITHUB_TOKEN also set, the entrypoint
+        # clones main and runs it (merges reach the floor within 30 s) and the Operate menu appears in
+        # the page header: open the demo PRs, approve, merge, turn the flag on, reset. Without the
+        # tokens the image's baked copy runs and the menu stays hidden.
+        GITHUB_REPO: launchdarkly-demos/ld-kevin-factory-demo
+        LD_PROJECT_KEY: kevinc-release-autopilot-demo
+        LD_ENV_KEY: production
+        # Secrets the Operate menu needs (set them in the depot's secret store, not here):
+        #   GITHUB_TOKEN           repo scope on GITHUB_REPO, owned by a GitHub user connected to LaunchDarkly
+        #   LD_API_KEY             writer on the project
+        #   FLIGHT_DECK_OPS_TOKEN  shared secret the presenter types once; required because allowPublic is true
 capabilities: []
 launchdarkly:
   # Bound to the one project the LaunchDarkly GitHub App is connected to. The depot never creates

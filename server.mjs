@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import * as flags from "./lib/flags.mjs";
 import { Autopilot } from "./lib/autopilot.mjs";
+import * as ops from "./lib/ops.mjs";
 import { World, TUNING } from "./sim/world.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -72,6 +73,12 @@ const CONFIG = {
   rate: Number(process.env.SIM_RATE || TUNING.passengersPerSecond),
 };
 
+// Operate menu: GitHub and LaunchDarkly actions fired from the page. Enabled
+// only when every token it needs is present (lib/ops.mjs lists them). When
+// FLIGHT_DECK_OPS_TOKEN is set, requests must carry it in an X-Ops-Token header.
+const OPS = ops.opsConfig();
+const OPS_TOKEN = (process.env.FLIGHT_DECK_OPS_TOKEN || "").trim();
+
 // ---------------------------------------------------------------------------
 // Flight log, flags, world
 // ---------------------------------------------------------------------------
@@ -120,6 +127,7 @@ setInterval(() => {
 // ---------------------------------------------------------------------------
 
 const AUTO_DEPLOY = process.env.FLIGHT_DECK_AUTO_DEPLOY !== "0";
+const DEPLOY_HINT = OPS.enabled ? "Use Operate > Redeploy" : "Run scripts/deploy.sh";
 const code = { commit: CONFIG.commit, originMain: null, behind: null, checkedAt: null, autoDeploy: AUTO_DEPLOY, deploying: false };
 let blockedReason = null;
 
@@ -152,25 +160,30 @@ function checkCode() {
     }
     if (AUTO_DEPLOY) autoDeploy(originMain);
     else if (wasBehind !== true) {
-      addLog({ kind: "error", text: `deck is running ${code.commit.slice(0, 7)} but main is at ${originMain.slice(0, 7)}: run scripts/deploy.sh` });
+      addLog({ kind: "error", text: `deck is running ${code.commit.slice(0, 7)} but main is at ${originMain.slice(0, 7)}: ${DEPLOY_HINT}` });
     }
   });
 }
 
-function autoDeploy(target) {
-  if (code.deploying) return;
-  let reason = null;
+/** Why this checkout cannot be moved to origin/main by the deck itself, or null. */
+function deployBlocker() {
   try {
     const branch = git("branch --show-current");
-    if (branch !== "main") reason = `checked out ${branch || "a detached commit"}, not main`;
-    else if (git("status --porcelain --untracked-files=no")) reason = "working tree has local changes";
+    if (branch !== "main") return `checked out ${branch || "a detached commit"}, not main`;
+    if (git("status --porcelain --untracked-files=no")) return "working tree has local changes";
   } catch (err) {
-    reason = `git failed: ${err && err.message ? err.message : err}`;
+    return `git failed: ${err && err.message ? err.message : err}`;
   }
+  return null;
+}
+
+function autoDeploy(target) {
+  if (code.deploying) return;
+  const reason = deployBlocker();
   if (reason) {
     if (reason !== blockedReason) {
       blockedReason = reason;
-      addLog({ kind: "error", text: `main is at ${target.slice(0, 7)} but not deploying: ${reason}. Run scripts/deploy.sh` });
+      addLog({ kind: "error", text: `main is at ${target.slice(0, 7)} but not deploying: ${reason}. ${DEPLOY_HINT}` });
     }
     return;
   }
@@ -179,7 +192,7 @@ function autoDeploy(target) {
   exec("git pull -q --ff-only origin main", { cwd: HERE, timeout: 60000 }, (err) => {
     if (err) {
       code.deploying = false;
-      addLog({ kind: "error", text: `pull failed: ${err.message.split("\n")[0]}. Run scripts/deploy.sh` });
+      addLog({ kind: "error", text: `pull failed: ${err.message.split("\n")[0]}. ${DEPLOY_HINT}` });
       return;
     }
     restartSelf();
@@ -231,12 +244,138 @@ function state() {
     mode: flagSnapshot.mode,
     sdkReady: flagSnapshot.ready,
     code,
+    ops: { enabled: OPS.enabled, missing: OPS.missing, tokenRequired: Boolean(OPS_TOKEN), busy: opsBusy, deployHint: DEPLOY_HINT },
     projectKey: CONFIG.projectKey,
     world: world.snapshot(),
     flags: flagSnapshot.flags,
     autopilot: autopilotState,
     log: flightLog.slice(-40),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Operate menu actions. One at a time; every outcome goes to the flight log so
+// the room sees "opened PR #22" next to the passengers it affects.
+// ---------------------------------------------------------------------------
+
+let opsBusy = null; // name of the action running, or null
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 65536) reject(new Error("body too large"));
+    });
+    req.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch {
+        reject(new Error("body is not JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+/** Move this checkout to origin/main (even when main went backwards) and restart. */
+function redeploy({ hard = false } = {}) {
+  const reason = deployBlocker();
+  if (reason) throw new Error(`cannot redeploy from this checkout: ${reason}`);
+  if (code.deploying) return { note: "already deploying" };
+  code.deploying = true;
+  const cmd = hard ? "git fetch -q origin main && git reset -q --hard FETCH_HEAD" : "git pull -q --ff-only origin main";
+  exec(cmd, { cwd: HERE, timeout: 60000 }, (err) => {
+    if (err) {
+      code.deploying = false;
+      addLog({ kind: "error", text: `redeploy failed: ${err.message.split("\n")[0]}` });
+      return;
+    }
+    restartSelf();
+  });
+  return { restarting: true };
+}
+
+const OPS_ACTIONS = {
+  "open-pr": async (body) => {
+    const which = Number(body.which);
+    const r = await ops.openPr(OPS, which);
+    addLog({ kind: "ops", text: r.note ? `PR #${r.number} is already open` : `opened PR #${r.number}: ${r.url}` });
+    return r;
+  },
+  comment: async (body) => {
+    const number = Number(body.pr);
+    const text = String(body.body || "").trim();
+    if (!number || !text) throw new Error("comment needs pr and body");
+    if (!/^@launchdarkly\s/.test(text)) throw new Error("only @launchdarkly commands can be posted from the deck");
+    const r = await ops.comment(OPS, number, text);
+    addLog({ kind: "ops", text: `commented "${text}" on PR #${number}` });
+    return r;
+  },
+  merge: async (body) => {
+    const number = Number(body.pr);
+    if (!number) throw new Error("merge needs pr");
+    const r = await ops.merge(OPS, number);
+    addLog({ kind: "ops", text: `merged PR #${number} (${String(r.sha).slice(0, 7)}); the deck redeploys when it sees main move` });
+    return r;
+  },
+  "flag-on": async (body) => {
+    const key = String(body.key || "").trim();
+    if (!key) throw new Error("flag-on needs key");
+    const r = await ops.flagOn(OPS, key);
+    addLog({ kind: "ops", text: `turned ${key} on, default rule serving ${r.serving}: the release engine can start` });
+    return r;
+  },
+  reset: async () => {
+    const r = await ops.reset(OPS);
+    addLog({
+      kind: "ops",
+      text: `reset: closed ${r.closedPrs.length} PR(s), deleted ${r.deletedBranches.length} branch(es) and ${r.deletedFlags.length} flag(s), main at ${r.main}`,
+    });
+    flags.resetRegistry();
+    try {
+      Object.assign(r, redeploy({ hard: true }));
+    } catch (err) {
+      addLog({ kind: "error", text: `${err.message}. Restart the deck on the new main by hand` });
+      r.restartNeeded = true;
+    }
+    return r;
+  },
+  redeploy: async () => {
+    const r = redeploy({ hard: true });
+    addLog({ kind: "ops", text: "redeploying from origin/main" });
+    return r;
+  },
+};
+
+async function handleOps(req, res, pathname) {
+  const action = pathname.slice("/api/ops/".length);
+  if (!OPS.enabled) return sendJson(res, 503, { error: `Operate is off: set ${OPS.missing.join(", ")}` });
+  if (OPS_TOKEN && req.headers["x-ops-token"] !== OPS_TOKEN) return sendJson(res, 401, { error: "wrong or missing X-Ops-Token" });
+  if (action === "status") {
+    if (req.method !== "GET") return sendJson(res, 405, { error: "GET only" });
+    try {
+      return sendJson(res, 200, { ...(await ops.status(OPS)), busy: opsBusy });
+    } catch (err) {
+      return sendJson(res, 502, { error: err.message });
+    }
+  }
+  if (req.method !== "POST") return sendJson(res, 405, { error: "POST only" });
+  const run = OPS_ACTIONS[action];
+  if (!run) return sendJson(res, 404, { error: `unknown action ${action}` });
+  if (opsBusy) return sendJson(res, 409, { error: `${opsBusy} is still running` });
+  opsBusy = action;
+  try {
+    const body = await readJsonBody(req);
+    const result = await run(body || {});
+    return sendJson(res, 200, { ok: true, action, result });
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    addLog({ kind: "error", text: `${action} failed: ${message}` });
+    return sendJson(res, 500, { error: message });
+  } finally {
+    opsBusy = null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -278,11 +417,12 @@ function serveStatic(req, res) {
 }
 
 const server = http.createServer((req, res) => {
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  if (pathname.startsWith("/api/ops/")) return handleOps(req, res, pathname);
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405);
     return res.end();
   }
-  const pathname = new URL(req.url, "http://localhost").pathname;
   if (pathname === "/api/state") return sendJson(res, 200, state());
   if (pathname === "/api/health") {
     return sendJson(res, 200, {

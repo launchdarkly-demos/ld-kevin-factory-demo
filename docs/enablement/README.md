@@ -58,7 +58,7 @@ act 2 only, about 12 minutes, which leaves room for questions.
 ## Practice and certification
 
 Each SE runs the full demo once in a supervised 30-minute slot, from
-`scripts/reset-demo.sh` to DISENGAGED, narrating as they go. The facilitator
+Operate > Reset to DISENGAGED, narrating as they go. The facilitator
 uses the certification checklist in the runbook. Sign-off requires:
 
 - Both acts completed, narrated, no notes.

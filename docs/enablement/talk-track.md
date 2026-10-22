@@ -37,7 +37,7 @@ and missed boardings, automatic rollback.
 passengers, plus a small ops endpoint for lane stats. No flag in the diff.
 This is a normal PR."
 
-**Do.** `scripts/open-pr.sh 1`. Open the PR. Point at the diff: a lane
+**Do.** Operate > PR 1 express lane. Open the PR. Point at the diff: a lane
 decision, an endpoint, tests. No LaunchDarkly anywhere.
 
 **They see.** A plain PR with eight files. Within 30 seconds the app reacts
@@ -64,7 +64,7 @@ release configuration that quotes the policy back word for word.
 **Say.** "The developer reviews the plan and approves. Watch what comes back:
 not a suggestion, a commit."
 
-**Do.** Reply `@launchdarkly approve`. When the commit lands, open it.
+**Do.** Operate > Approve (posts `@launchdarkly approve`). When the commit lands, open it.
 
 **They see.** A commit by the app: the lane decision wrapped in
 `isEnabled("enable-express-boarding", passenger.context, false)`, flag-on and
@@ -82,10 +82,11 @@ flight log. The flag is off, so nothing changed for a passenger yet. The
 handoff is one switch: the engineer turns the flag on, still serving the
 baseline. That tells autopilot the code is live."
 
-**Do.** Merge. Wait for "restarting on the new code" in the flight log (about
-30 seconds; `scripts/deploy.sh` if impatient). In LaunchDarkly, flag on,
-default rule to Control, save. If the release hasn't started within a minute, click Release
-on the targeting page and Save; the form is pre-filled from the policy.
+**Do.** Operate > Merge. Wait for "restarting on the new code" in the flight
+log (about 30 seconds; Operate > Redeploy if impatient). Operate > Turn on,
+serve baseline (or in LaunchDarkly: flag on, default rule to Control, save).
+If the release hasn't started within a minute, click Release on the
+targeting page and Save; the form is pre-filled from the policy.
 
 **They see.** Within a minute the flag's Release tab reads "Release phase 1 of
 1, In progress". On the deck, the first gold passengers appear as they clear
@@ -112,7 +113,7 @@ everyone and the tape shows it as landed.
 and Elite members at the gate. Good for revenue. Costs a few minutes per
 passenger at the door. The PR says so honestly."
 
-**Do.** `scripts/open-pr.sh 2`. Open the PR.
+**Do.** Operate > PR 2 upgrade offers. Open the PR.
 
 **They see.** Five files, a new `/api/upgrades` endpoint, a stated customer
 impact.
@@ -128,7 +129,7 @@ diff."
 
 ### Block 2c. Approve, merge, deploy, flag on (3 minutes)
 
-**Do.** `@launchdarkly approve`, wait for "Plan applied", merge, wait for the
+**Do.** Operate > Approve, wait for "Plan applied", Merge, wait for the
 self-deploy, flag on with Control. Release button if needed.
 
 **They see.** Everyone on the floor drops from gold to blue: the new rolling

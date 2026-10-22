@@ -18,9 +18,20 @@ git tag -f demo-baseline && git push -f origin refs/tags/demo-baseline:refs/tags
 
 The reset refuses to run if `main` holds commits it does not recognise.
 
+## Driving it from the page
+
+Every step below that names a script or a LaunchDarkly click has a button in
+the deck's **Operate** menu (top right): open PR 1 or 2, Approve, Refine,
+Merge, Turn on serving baseline, Redeploy, Reset. The menu shows when the
+deck has `GITHUB_TOKEN`, `GITHUB_REPO`, `LD_API_KEY` and `LD_PROJECT_KEY`,
+which the Demo Depot container does; on a laptop add them to `.env`. The
+GitHub token's owner must be a GitHub user connected to LaunchDarkly, because
+the App only obeys commands from people it knows. Outcomes land in the flight
+log, so the room sees "opened PR #22" next to the passengers.
+
 ## Before the session
 
-1. Reset everything: `scripts/reset-demo.sh --yes`. Closes open PRs, deletes
+1. Reset everything: Operate > **Reset**, or `scripts/reset-demo.sh --yes`. Closes open PRs, deletes
    feature branches, forces `main` back to the `demo-baseline` tag, deletes
    the project's flags, restarts the deck. Dry run without `--yes`.
 2. Open http://localhost:7777 on the big screen. It should read **TAXI** with
@@ -35,23 +46,25 @@ The reset refuses to run if `main` holds commits it does not recognise.
 
 ## Act 1: express boarding lane (lands)
 
-1. `scripts/open-pr.sh 1`. Opens the PR from the stored patch.
+1. Operate > **PR 1 express lane** (or `scripts/open-pr.sh 1`). Opens the PR from the stored patch.
 2. Within a minute the GitHub App reacts with eyes. About four minutes later it
    posts a plan: one boolean flag, plus a release configuration quoting the
    project's policy. Talking points while waiting: the deck, the policy, the
    metrics the policy watches.
-3. Reply `@launchdarkly approve` on the PR. About two minutes later: "Plan
+3. Operate > **Approve** on the PR row (posts `@launchdarkly approve`). About two minutes later: "Plan
    applied", a commit from Vega wrapping the lane behind the flag, flag created
    off in LaunchDarkly.
-4. Merge the PR. Within about 30 seconds the deck notices `main` moved, pulls,
+4. Operate > **Merge**. Within about 30 seconds the deck notices `main` moved, pulls,
    and restarts itself; the flight log shows "main moved to …: deploying" and
    then "restarting on the new code". That is the deploy. If you do not want
-   to wait, `scripts/deploy.sh` does the same thing now. The deck only
+   to wait, Operate > **Redeploy** (or `scripts/deploy.sh`) does the same thing now. The deck only
    self-deploys from a clean `main` checkout; otherwise it shows the orange
    banner and leaves it to you.
-5. **Turn the flag on** in LaunchDarkly, Production, **and set the default
-   rule to serve the baseline variation in the same save** (the app has named
-   it `Control` on some runs and `Off` on others). The app creates the flag
+5. **Turn the flag on serving the baseline.** Operate > **Turn on, serve
+   baseline** on the flag row does both in one semantic patch. By hand in
+   LaunchDarkly, Production: turn it on **and set the default rule to serve
+   the baseline variation in the same save** (the app has named it `Control`
+   on some runs and `Off` on others). The app creates the flag
    with the new-behaviour variation as the on-default, so flipping the switch
    alone ships the feature to everyone and the engine has nothing to release. Done right, the
    Release tab shows "Release phase 1 of 1, In progress" within a minute and
@@ -66,11 +79,11 @@ The reset refuses to run if `main` holds commits it does not recognise.
 
 ## Act 2: gate upgrade offers (rolls back)
 
-1. `scripts/open-pr.sh 2`. The classifier flags this one unaided and warns
+1. Operate > **PR 2 upgrade offers** (or `scripts/open-pr.sh 2`). The classifier flags this one unaided and warns
    that the boarding-time guard may roll it back.
-2. `@launchdarkly approve`, wait for "Plan applied", merge, wait for the
-   self-deploy (or `scripts/deploy.sh`).
-3. Turn the flag on, default rule Control.
+2. Approve, wait for "Plan applied", Merge, wait for the self-deploy (or
+   Redeploy).
+3. Turn on, serve baseline.
 4. Watch: release starts within a minute, 10% then 25%. Plus and Elite
    passengers pause at the door with a purple ring; the new-path boarding time
    gauge climbs past baseline and turns red. At roughly +3 minutes the guard
@@ -81,15 +94,21 @@ The reset refuses to run if `main` holds commits it does not recognise.
 
 - No eyes reaction within two minutes: check the repo is still mapped at
   Settings > Release autopilot.
-- Classifier says "no flag needed": reply `@launchdarkly refine gate this
-  behind a boolean flag per CLAUDE.md`.
+- Classifier says "no flag needed": Operate > **Refine** (posts
+  `@launchdarkly refine`), or reply by hand with `@launchdarkly refine gate
+  this behind a boolean flag per CLAUDE.md`.
 - Release tab stuck at "Not ready": the flag is still off. Turn it on.
 - Deck shows "offline": `LD_SDK_KEY` missing from `.env`.
 - Altitude tape stays empty after merge: wait 30 seconds for the self-deploy,
-  or run `scripts/deploy.sh`. An orange banner that stays up means the deck
+  or Operate > Redeploy (`scripts/deploy.sh`). An orange banner that stays up means the deck
   cannot self-deploy (not on `main`, or local changes); the banner says which.
 - Deck unresponsive or port in use: `scripts/deploy.sh --no-pull` kills and
-  restarts it.
+  restarts it. In Demo Depot, restart the instance.
+- Operate menu missing from the header: one of `GITHUB_TOKEN`, `GITHUB_REPO`,
+  `LD_API_KEY`, `LD_PROJECT_KEY` is unset; `/api/state` lists which under
+  `ops.missing`.
+- Approve posted but the App ignores it: the GitHub token's owner is not a
+  LaunchDarkly-connected GitHub user. Comment from your own account instead.
 
 ## Pace
 

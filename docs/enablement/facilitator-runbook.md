@@ -6,12 +6,16 @@ not getting caught out in front of a room.
 
 ## The day before
 
-- [ ] `git checkout develop && git pull`, then `scripts/reset-demo.sh --yes`.
-      Confirm the deck comes up at TAXI with an empty tape.
+- [ ] Operate > **Reset** on the deck (laptop alternative: `git checkout
+      develop && git pull`, then `scripts/reset-demo.sh --yes`). Confirm the
+      deck comes up at TAXI with an empty tape.
 - [ ] Dry-run act 1 end to end. Note the classifier time; it varies.
 - [ ] Confirm the policy still reads 10% / 1 min, 25% / 1 min, 50% / 2 min
       with both metrics attached and auto-rollback on.
-- [ ] Confirm `.env` has the Production SDK key and `LD_API_KEY`.
+- [ ] Confirm the Operate menu shows in the header. If not, the deck is
+      missing one of `GITHUB_TOKEN`, `GITHUB_REPO`, `LD_API_KEY`,
+      `LD_PROJECT_KEY` (`.env` on a laptop, secrets in Demo Depot). Confirm the
+      Production SDK key is set (header reads "live").
 - [ ] Reset again so the room sees a clean start, or deliberately pre-merge
       act 1 (see below).
 
@@ -23,11 +27,13 @@ not getting caught out in front of a room.
 - [ ] Browser tabs, in order: the deck (full screen on the shared display),
       the repo's pull requests page, the flag list in LaunchDarkly, the
       release policy.
-- [ ] Terminal in the repo on `main`, font large enough to read from the back.
+- [ ] No terminal needed: every step is in the Operate menu. If you prefer
+      the scripts, a terminal in the repo on `main`, font large enough to
+      read from the back.
 - [ ] Decide: act 1 live or pre-merged. Pre-merged is the default for a
       60-minute session.
-- [ ] If pre-merging: open PR 1, approve, merge, deploy, flag on with Control,
-      let it reach CRUISE. Leave the PR conversation open in a tab; you will
+- [ ] If pre-merging: Operate > PR 1, Approve, Merge, Turn on serving
+      baseline, let it reach CRUISE. Leave the PR conversation open in a tab; you will
       walk through it instead of waiting for it.
 - [ ] Optional: start `scripts/capture.sh 10` in a second terminal to record.
 
@@ -39,11 +45,13 @@ not getting caught out in front of a room.
 | App reacts (👀 then 🚀) but never posts a plan | Account-wide auto-flagging is switched off (Settings > Release autopilot, "Account-wide" row). The switch is shared across the whole account; someone else can turn it off | Turn account-wide auto-flagging back on, then `@launchdarkly plan` on the PR. Check this switch in the hour-before list | 1 min |
 | "LaunchDarkly suggests no changes" | Classifier found nothing to protect | Reply `@launchdarkly refine gate this behind a boolean flag per CLAUDE.md`; plan arrives in ~90 s. Say "judgment, not a regex" | 2 min |
 | App asks a question instead of planning | Its policy lookup failed | Reply `@launchdarkly` and name the policy and environment; it replans | 2 min |
-| Tape stays empty 30 s after merge | Deck has not self-deployed yet, or cannot (banner says why: not on `main`, or local changes) | Wait for "restarting on the new code" in the flight log, or `scripts/deploy.sh` | 30 s |
-| Flag on, tape jumps to 100% immediately | Default rule left on Treatment | Set default rule to Control and save. Release will not start on its own after this; use the Release button | 1 min |
+| Tape stays empty 30 s after merge | Deck has not self-deployed yet, or cannot (banner says why: not on `main`, or local changes) | Wait for "restarting on the new code" in the flight log, or Operate > Redeploy (`scripts/deploy.sh`) | 30 s |
+| Flag on, tape jumps to 100% immediately | Flag switched on by hand with the default rule left on Treatment (Operate > Turn on, serve baseline avoids this) | Set default rule to Control and save. Release will not start on its own after this; use the Release button | 1 min |
 | Flag on with Control, nothing after a minute | Automatic start did not fire (intermittent) | Targeting page: Release, Review and save, Save. Pre-filled from the policy | 30 s |
 | "Plan applied" mentions a duplicate flag in another project | App created a stray flag in the account's `default` project | Ignore during the demo; archive it afterwards | 0 |
-| Deck unresponsive or port in use | Wedged process | `scripts/deploy.sh --no-pull` | 10 s |
+| Deck unresponsive or port in use | Wedged process | `scripts/deploy.sh --no-pull`; in Demo Depot, restart the instance | 10 s |
+| Operate action fails with "patch … does not apply onto main" | `main` still carries the previous run | Operate > Reset, then retry | 1 min |
+| Approve posted from the menu, App does nothing | The deck's GitHub token belongs to a user LaunchDarkly does not know | Comment `@launchdarkly approve` from your own GitHub account; fix the token later | 1 min |
 | Reset refuses with "commits on origin/main" | Someone committed to `main` directly | Those commits belong on `develop`; cherry-pick them there, move the tag, re-run. Or `--yes --discard-main` if they are disposable | 2 min |
 
 ## Narration under failure
@@ -55,6 +63,8 @@ The audience does not know the script. Every row above has a one-line cover:
 - Release button: "I'll start the release by hand; it pre-fills everything from the policy, which is the point."
 
 ## Reset between groups
+
+Operate > **Reset** (confirm the dialog). From a laptop:
 
 ```bash
 scripts/reset-demo.sh          # review the plan

@@ -12,15 +12,15 @@ Release AutoPilot end to end. An airport operations board shows 2,000 simulated 
 
 This demo is bound to one LaunchDarkly project (`kevinc-release-autopilot-demo`), the one the GitHub App is connected to, and to one GitHub repository. Demo Depot checks it out to you when you launch and checks it back in when you tear down. If someone else has it, the demo page lets you ask them to hand it over; they get a Slack message with *Hand it over* / *Not yet*.
 
-Before a session, reset the repo and project from your laptop: `scripts/reset-demo.sh --yes` (closes PRs, forces `main` back to `demo-baseline`, deletes the project's flags). The depot instance only runs the deck.
+Everything you do during the demo is a button in the deck's **Operate** menu (top right): Reset, open PR 1 or 2, Approve, Refine, Merge, Turn on serving baseline, Redeploy. No terminal needed. The menu shows once the instance has `GITHUB_TOKEN`, `LD_API_KEY` and `FLIGHT_DECK_OPS_TOKEN` (the depot's secrets); it asks for the ops token once per browser session. Before a session, open the menu and press **Reset**: closes PRs, forces `main` back to the baseline, deletes the project's flags, restarts the deck.
 
 ## The story (about 15 minutes)
 
 1. **Open the deck.** Everything is red: no flags, baseline behaviour. Talk about the policy and the metrics it watches.
-2. **Open PR 1** (`scripts/open-pr.sh 1`, express boarding lane). Within a minute the App reacts; about four minutes later it posts a plan: one boolean flag plus a release configuration quoting the project's policy.
-3. **Approve** (`@launchdarkly approve`). About two minutes later: "Plan applied", a commit from Vega wrapping the lane behind the flag, flag created off in LaunchDarkly.
-4. **Merge and deploy.** In the depot the deck can't pull `main` and restart itself, so the merged code ships as the next depot version: tag the repo and launch the new version (or keep the current instance for the next beat and narrate the deploy).
-5. **Turn the flag on** in Production and set the default rule to serve Control in the same save. Within a minute the Release tab shows phase 1 in progress and the deck's lamp reads CLIMB. Squares turn green as the rollout climbs.
+2. **Open PR 1** (Operate > PR 1 express lane). Within a minute the App reacts; about four minutes later it posts a plan: one boolean flag plus a release configuration quoting the project's policy.
+3. **Approve** (Operate > Approve posts `@launchdarkly approve`). About two minutes later: "Plan applied", a commit from Vega wrapping the lane behind the flag, flag created off in LaunchDarkly.
+4. **Merge and deploy.** Operate > Merge. The container runs a live clone of `main`, so within 30 seconds the flight log reads "main moved to …: deploying" and the deck restarts on the merged code. That is the deploy. Operate > Redeploy forces it.
+5. **Turn the flag on serving the baseline** (Operate > Turn on, serve baseline; or by hand in Production with the default rule set to Control in the same save). Within a minute the Release tab shows phase 1 in progress and the deck's lamp reads CLIMB. Squares turn green as the rollout climbs.
 6. **PR 2** (gate upgrade offers) regresses a guardrail. Watch autopilot roll it back.
 
 ## Created during the demo
