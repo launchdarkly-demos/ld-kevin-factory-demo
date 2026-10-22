@@ -78,6 +78,8 @@ const CONFIG = {
 // FLIGHT_DECK_OPS_TOKEN is set, requests must carry it in an X-Ops-Token header.
 const OPS = ops.opsConfig();
 const OPS_TOKEN = (process.env.FLIGHT_DECK_OPS_TOKEN || "").trim();
+// Set by scripts/launch.mjs when a Demo Depot launch could not provision its repo or project.
+const LAUNCH_ERROR = (process.env.FLIGHT_DECK_LAUNCH_ERROR || "").trim();
 
 // ---------------------------------------------------------------------------
 // Flight log, flags, world
@@ -102,6 +104,7 @@ await flags.init({
 TUNING.passengersPerSecond = CONFIG.rate;
 const world = new World({ seed: CONFIG.seed, log: addLog });
 addLog({ kind: "deck", text: `simulation started, ${CONFIG.rate} passengers/s, seed ${CONFIG.seed}` });
+if (LAUNCH_ERROR) addLog({ kind: "error", text: `launch provisioning failed: ${LAUNCH_ERROR}` });
 
 const TICK_MS = 100;
 let lastTick = Date.now();
@@ -251,7 +254,7 @@ function state() {
     mode: flagSnapshot.mode,
     sdkReady: flagSnapshot.ready,
     code,
-    ops: { enabled: OPS.enabled, missing: OPS.missing, tokenRequired: Boolean(OPS_TOKEN), busy: opsBusy, deployHint: DEPLOY_HINT },
+    ops: { enabled: OPS.enabled, missing: OPS.missing, tokenRequired: Boolean(OPS_TOKEN), busy: opsBusy, deployHint: DEPLOY_HINT, launchError: LAUNCH_ERROR || null },
     projectKey: CONFIG.projectKey,
     world: world.snapshot(),
     flags: flagSnapshot.flags,

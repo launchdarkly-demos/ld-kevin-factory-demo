@@ -59,7 +59,10 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       server = await res.json();
       lastPollAt = performance.now();
-      if (server.code && server.code.behind) {
+      if (server.ops && server.ops.launchError) {
+        el.banner.hidden = false;
+        el.banner.textContent = `This launch could not set up its repository and project: ${server.ops.launchError}. The deck runs without the pull-request beats.`;
+      } else if (server.code && server.code.behind) {
         el.banner.hidden = false;
         const hint = (server.ops && server.ops.deployHint) || "Run scripts/deploy.sh";
         el.banner.textContent = `Deck is running old code (${server.code.commit.slice(0, 7)}); main is at ${server.code.originMain.slice(0, 7)}. ${hint}.`;

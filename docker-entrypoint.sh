@@ -26,7 +26,8 @@ set -u
 IMAGE_DIR="$(pwd)"
 
 if [ -z "${GITHUB_REPO:-}" ]; then
-  # Fails the start (and so the launch) if provisioning fails; skips quietly when inputs are absent.
+  # Skips quietly when inputs are absent. On failure it sets FLIGHT_DECK_LAUNCH_ERROR and the deck
+  # starts from the baked copy so the failure is visible on the page instead of in a crash loop.
   out="$(node scripts/launch.mjs provision)" || exit 1
   eval "$out"
 fi

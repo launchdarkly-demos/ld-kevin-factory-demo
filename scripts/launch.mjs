@@ -7,7 +7,9 @@
  *   node scripts/launch.mjs teardown    unmap and delete the repo (the depot deletes the project)
  *
  * Does nothing (exit 0, no output) when the launch inputs are missing, so a
- * verification run or a laptop start falls through to the ordinary path.
+ * verification run or a laptop start falls through to the ordinary path. A
+ * provisioning failure prints FLIGHT_DECK_LAUNCH_ERROR instead of failing the
+ * start, so the deck comes up and shows what went wrong.
  */
 import { launchConfig, provisionLaunch, teardownLaunch } from "../lib/launch.mjs";
 
@@ -34,5 +36,11 @@ try {
   }
 } catch (err) {
   log(`${mode} failed: ${err.message}`);
+  if (mode === "provision") {
+    // Let the deck start anyway and show the failure, instead of a crash loop the depot reports
+    // only as "did not become healthy".
+    console.log(`export FLIGHT_DECK_LAUNCH_ERROR=${JSON.stringify(err.message).replace(/\$/g, "\\$").replace(/`/g, "\\`")}`);
+    process.exit(0);
+  }
   process.exit(1);
 }
