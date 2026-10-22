@@ -50,15 +50,22 @@ ld() { # method path [json]
 
 if [ "$TEARDOWN" = 1 ]; then
   echo "== Tearing down $REPO and $PROJECT"
+  FAILED=0
   REPO_ID="$(gh api "repos/$REPO" --jq .id 2>/dev/null || true)"
   if [ -n "$REPO_ID" ]; then
-    echo "  unmapping repo $REPO_ID"; ld DELETE "/api/v2/account/factory-settings/repos/$REPO_ID" >/dev/null || true
-    echo "  deleting repo $REPO"; gh repo delete "$REPO" --yes
+    echo "  unmapping repo $REPO_ID"
+    ld DELETE "/api/v2/account/factory-settings/repos/$REPO_ID" >/dev/null || { echo "  unmap failed" >&2; FAILED=1; }
   else
-    echo "  repo $REPO not found"
+    echo "  repo $REPO not found on GitHub (already deleted?)"
   fi
-  echo "  deleting project $PROJECT"; ld DELETE "/api/v2/projects/$PROJECT" >/dev/null || true
-  echo "Done."
+  echo "  deleting project $PROJECT"
+  ld DELETE "/api/v2/projects/$PROJECT" >/dev/null || { echo "  project delete failed" >&2; FAILED=1; }
+  if [ -n "$REPO_ID" ]; then
+    echo "  deleting repo $REPO"
+    # needs the delete_repo scope: gh auth refresh -h github.com -s delete_repo
+    gh repo delete "$REPO" --yes || FAILED=1
+  fi
+  [ "$FAILED" = 0 ] && echo "Done." || { echo "Finished with errors; re-run after fixing them." >&2; exit 1; }
   exit 0
 fi
 
