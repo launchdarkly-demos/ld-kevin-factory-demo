@@ -131,7 +131,7 @@
       if (!tokenRequired) return "";
       let t = sessionStorage.getItem("flight-deck-ops-token");
       if (!t) {
-        t = window.prompt("Operate token (FLIGHT_DECK_OPS_TOKEN on the server)") || "";
+        t = window.prompt("Operate PIN (the one chosen at launch, or FLIGHT_DECK_OPS_TOKEN on the server)") || "";
         if (t) sessionStorage.setItem("flight-deck-ops-token", t);
       }
       return t;

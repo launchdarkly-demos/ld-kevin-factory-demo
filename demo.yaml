@@ -20,6 +20,14 @@ parameters:
     help: >-
       repo + delete_repo scope, SSO-authorised for launchdarkly-demos, from a GitHub user connected to
       LaunchDarkly. Creates your disposable repo copy; blank runs the deck without the PR beats.
+  - name: FLIGHT_DECK_OPS_TOKEN
+    label: Operate PIN
+    type: string
+    secret: true
+    required: false
+    help: >-
+      Any passphrase you choose. The deck's Operate menu asks for it once per browser session before it
+      opens PRs, merges, or resets. Leave blank to leave the menu open to anyone who can reach the deck.
   - name: SIM_RATE
     label: Simulated passengers per second
     type: enum
@@ -49,11 +57,9 @@ runtime:
         FLIGHT_DECK_TEMPLATE_REPO: launchdarkly-demos/ld-kevin-factory-demo
       secrets:
         # Owner-set at /demos/flight-deck/manage. The instance uses the depot's project-writer token
-        # (LD_API_TOKEN) for everything it can; LD_API_KEY, an account-level token, is the fallback for
-        # the Release AutoPilot repo mapping, which is an account setting (the launch log says whether
-        # it was needed). FLIGHT_DECK_OPS_TOKEN gates the Operate menu because instances may be public.
+        # (LD_API_TOKEN) where it can; LD_API_KEY, an account-level token, is the fallback for the
+        # calls that token is refused for (metrics, release policy, the Release AutoPilot repo mapping).
         - LD_API_KEY
-        - FLIGHT_DECK_OPS_TOKEN
 capabilities: []
 launchdarkly:
   # One project per instance, created by the depot with the SE's token and deleted at teardown.

@@ -16,7 +16,7 @@ the GitHub side itself:
 
 1. **Start** (`docker-entrypoint.sh` → `scripts/launch.mjs provision`): when
    `DD_INSTANCE_ID`, `GITHUB_TOKEN` (launch parameter, `secret: true`) and
-   `LD_API_KEY` (owner demo secret, account level) are present, create
+   `LD_API_KEY` (owner demo secret, account level; the depot's project-writer token gets HTTP 403 on metrics and policies) are present, create
    `ld-flight-deck-<instance id>` from the template in the same org (or find
    it after a restart), add the two metrics and the release policy to the
    injected project (409 = already there), and PATCH the mapping. It prints
@@ -41,10 +41,12 @@ the GitHub side itself:
 cleaning up a launch whose container never stopped cleanly.
 
 Why `LD_API_KEY` is a demo secret rather than the injected token: the
-Release AutoPilot mapping lives in account factory settings, outside any
-project, and the injected `LD_API_TOKEN` is a project writer. Flag writes
-from the Operate menu fall back to `LD_API_TOKEN` when `LD_API_KEY` is
-absent.
+injected `LD_API_TOKEN` is a project writer and is refused (HTTP 403) when
+creating metrics and release policies, and the Release AutoPilot mapping
+lives in account factory settings outside any project. Every call tries the
+injected token first and falls back to the account key; the launch log says
+which one worked. The Operate PIN (`FLIGHT_DECK_OPS_TOKEN`) is a launch
+parameter the SE chooses, not an owner secret, because the SE has to know it.
 
 ## The mapping API
 

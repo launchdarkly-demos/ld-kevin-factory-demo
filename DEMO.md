@@ -14,7 +14,7 @@ Every launch gets its own LaunchDarkly project (the depot creates it with your t
 
 For that you type a **GitHub token** on the launch form (`repo` and `delete_repo` scope, SSO-authorised for `launchdarkly-demos`, from a GitHub user connected to LaunchDarkly, since the App only obeys commands from people it knows). Leave it blank and the deck still runs, but without the pull-request beats.
 
-Everything you do during the demo is a button in the deck's **Operate** menu (top right): open PR 1 or 2, Approve, Refine, Merge, Turn on serving baseline, Redeploy, Reset. No terminal. The menu asks for the ops token once per browser session (the owner sets it as a demo secret).
+Everything you do during the demo is a button in the deck's **Operate** menu (top right): open PR 1 or 2, Approve, Refine, Merge, Turn on serving baseline, Redeploy, Reset. No terminal. If you set an **Operate PIN** on the launch form, the menu asks for it once per browser session; set one whenever you share the instance as a public link.
 
 ## The story (about 15 minutes)
 
@@ -42,17 +42,18 @@ Nothing is seeded. Flags are created live and must not be pre-created.
 | Parameter | What it does |
 | --- | --- |
 | `GITHUB_TOKEN` (secret) | Creates and later deletes your repo copy, posts the `@launchdarkly` commands as you. Blank: no PR beats. |
+| `FLIGHT_DECK_OPS_TOKEN` (secret, "Operate PIN") | Any passphrase you choose; the Operate menu asks for it once. Blank: menu open to anyone who can reach the deck. |
 | `SIM_RATE` | Simulated passengers per real second. 8 gives a guarded release enough samples to decide within one-minute steps. |
 | `SIM_SEED` | Random seed for the simulation. Same seed, same passengers. |
 
 ## Setup the SE does
 
 - A GitHub token with `repo` and `delete_repo` scope, SSO-authorised for `launchdarkly-demos`, pasted on the launch form. Your GitHub account must be connected to LaunchDarkly (Settings > Release autopilot does that the first time you claim a plan).
-- The ops token from the demo owner, typed once when you first open the Operate menu.
+- Optional: an Operate PIN of your choosing on the launch form, typed once when you first open the Operate menu.
 
 ## Setup the owner does (once)
 
-- Demo secrets at `/owners/flight-deck`: `LD_API_KEY` (an account-level LaunchDarkly token; the Release AutoPilot mapping is an account setting) and `FLIGHT_DECK_OPS_TOKEN`.
+- Demo secret at `/demos/flight-deck/manage`: `LD_API_KEY`, an account-level LaunchDarkly token. The depot's project-writer token is refused for metrics, release policies and the Release AutoPilot mapping, so the instance falls back to this key for those calls.
 - Keep `ld-kevin-factory-demo` a template repo with `main` at the flag-free baseline.
 
 ## Known limitations
